@@ -3,7 +3,6 @@ import type { Mixture } from '../chem/mixture';
 import type { Vessel } from './parts';
 
 export type UseKind = 'pour' | 'drip' | 'none';
-export type SnapKind = 'mouth' | 'liquid' | 'flame';
 
 /** Who is holding a tool: the mouse/finger, or XR controller 0 or 1. */
 export type Holder = 'pointer' | 0 | 1;
@@ -15,15 +14,15 @@ export class Tool {
   readonly homeQuat = new THREE.Quaternion();
   /** Orientation while held with the mouse, before it is turned to face the camera. */
   readonly desktopQuat = new THREE.Quaternion();
-  /** The point that snaps onto targets (dropper tip, splint tip, tube mouth), in local space. */
+  /** The working point (spout, dropper tip, splint tip, tube mouth), in local space. With the mouse,
+   *  this is the point that follows the cursor, and tilting pivots around it. */
   readonly tip = new THREE.Vector3();
   /** Height of the hand above the origin. */
   gripOffset = 0.05;
   grabRadius = 0.09;
   use: UseKind = 'none';
-  snapKinds: SnapKind[] = [];
-  /** How far above a snap target the tip waits, when held with the mouse. */
-  snapLift = 0.05;
+  /** Height of the tip above the bench when first picked up with the mouse. */
+  holdHeight = 0.2;
   vessel?: Vessel;
   /** Pours pieces instead of liquid (zinc granules, MnO₂ powder). */
   solid?: { part: Mixture; color: number; size: number; perSecond: number; unit: 'pieces' | 'spoons' };

@@ -37,8 +37,7 @@ export function reagentBottle(lab: Lab, spec: BottleSpec, mix: Mixture, x: numbe
   tool.use = 'pour';
   tool.pourRate = 16;
   tool.gripOffset = 0.08;
-  tool.snapKinds = ['mouth'];
-  tool.snapLift = 0.05;
+  tool.holdHeight = 0.24;
   tool.tip.set(v.rimRadius, v.height, 0);
   tool.detail = () => `${spec.formula} · ${spec.detail}`;
   const label = lab.label(0.09, 0.068, reagentLabel({ ...spec, name }));
@@ -84,8 +83,7 @@ export function beaker(lab: Lab, x: number, z: number) {
   tool.use = 'pour';
   tool.pourRate = 30;
   tool.gripOffset = 0.05;
-  tool.snapKinds = ['mouth'];
-  tool.snapLift = 0.04;
+  tool.holdHeight = 0.2;
   tool.tip.set(v.rimRadius, v.height, 0);
   tool.detail = () => `${Math.round(v.mix.volume)} ${t('unit.ml')}`;
   const area = Math.PI * v.radius * v.radius;
@@ -160,8 +158,7 @@ export function dropper(lab: Lab, key: Key, perDrop: Mixture, color: number, x: 
   tool.drop = { part: perDrop, color };
   tool.gripOffset = 0.1;
   tool.grabRadius = 0.06;
-  tool.snapKinds = ['mouth'];
-  tool.snapLift = 0.035;
+  tool.holdHeight = 0.13;
   tool.tip.set(0, 0, 0);
   tool.setHome(x, Y + 0.0, z);
   return lab.addTool(tool);
@@ -196,8 +193,7 @@ export function jar(lab: Lab, spec: BottleSpec, part: Mixture, color: number, si
   tool.use = 'pour';
   tool.solid = { part, color, size, perSecond: 5, unit };
   tool.gripOffset = 0.045;
-  tool.snapKinds = ['mouth'];
-  tool.snapLift = 0.045;
+  tool.holdHeight = 0.22;
   tool.tip.set(r - 0.006, h, 0);
   tool.detail = () => `${spec.formula} · ${spec.detail}`;
   tool.setHome(x, Y, z);
@@ -262,7 +258,6 @@ export function spiritLamp(lab: Lab, x: number, z: number) {
   flame.group.position.set(0, 0.093, 0);
   g.add(flame.group);
   lab.flames.push(flame);
-  lab.addFlameSnap(flame);
   lab.addPressable(body, () => {
     flame.lit = !flame.lit;
   });
@@ -292,8 +287,7 @@ export function splint(lab: Lab, x: number, z: number) {
   tool.tip.set(0, len, 0);
   tool.gripOffset = 0.03;
   tool.grabRadius = 0.1;
-  tool.snapKinds = ['flame', 'mouth'];
-  tool.snapLift = -0.025;
+  tool.holdHeight = 0.14;
   // Held with the mouse, the tip points down and away so it can go into a tube.
   tool.desktopQuat.setFromEuler(new THREE.Euler(0, 0, Math.PI * 0.82));
   tool.setHome(x, Y + 0.003, z, 0, -Math.PI / 2);
@@ -320,8 +314,7 @@ export function collectorTube(lab: Lab, x: number, z: number) {
   tool.root.add(gas);
   tool.tip.set(0, h, 0);
   tool.gripOffset = 0.06;
-  tool.snapKinds = ['mouth', 'flame'];
-  tool.snapLift = 0.012;
+  tool.holdHeight = 0.2;
   tool.desktopQuat.setFromEuler(new THREE.Euler(Math.PI, 0, 0));
   tool.setHome(x, Y + 0.014, z);
   lab.addTool(tool);
@@ -376,8 +369,7 @@ export function phProbe(lab: Lab, x: number, z: number) {
   screen.mesh.position.set(0, 0.185, 0.0102);
   tool.root.add(screen.mesh);
   tool.gripOffset = 0.15;
-  tool.snapKinds = ['liquid'];
-  tool.snapLift = 0;
+  tool.holdHeight = 0.16;
   tool.tip.set(0, 0, 0);
   tool.detail = () => (reading === null ? '' : `pH ${reading.toFixed(1)}`);
   // Stands in a small holder.

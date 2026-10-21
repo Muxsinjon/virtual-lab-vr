@@ -28,7 +28,8 @@ export function installDevHelpers(app: App) {
     await w.step(0.1);
     a.input.grab(t, 'pointer');
     const p = vessel.mouthWorld(new THREE.Vector3());
-    p.y += Math.max(0.04, t.snapLift);
+    p.y += 0.05;
+    a.input.tipY = p.y;
     w.aimAt(p);
     await w.step(0.7);
     if (drops) {

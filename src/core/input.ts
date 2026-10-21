@@ -42,7 +42,6 @@ function shown(o: THREE.Object3D | null) {
   for (; o; o = o.parent) if (!o.visible) return false;
   return true;
 }
-const HOLD_HEIGHT = 0.3;
 const POUR_TILT = 1.95;
 
 export class Input {
@@ -51,6 +50,8 @@ export class Input {
   /** The free tool under the mouse or a controller's ray, for the name tag. */
   private hovered: Tool | null = null;
   private readonly ndc = new THREE.Vector2();
+  /** Height of the held tool's tip, with the mouse or a finger. */
+  private tipY = BENCH.top + 0.2;
   private readonly raycaster = new THREE.Raycaster();
   private readonly hands: Hand[] = [];
   private readonly canvas: HTMLCanvasElement;
@@ -64,8 +65,23 @@ export class Input {
       if (e.pointerType === 'mouse') this.useActive = false;
     });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
+    // While holding something, the wheel moves it up and down instead of zooming.
+    c.addEventListener(
+      'wheel',
+      (e) => {
+        if (!this.heldPointer) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.nudgeHeight(-e.deltaY * 0.0004);
+      },
+      { capture: true, passive: false },
+    );
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.putBack();
+      if (this.heldPointer && ['ArrowUp', 'ArrowDown', 'w', 's', 'W', 'S'].includes(e.key)) {
+        e.preventDefault();
+        this.nudgeHeight(e.key === 'ArrowUp' || e.key.toLowerCase() === 'w' ? 0.02 : -0.02);
+      }
       if (e.key === ' ' && this.heldPointer) {
         e.preventDefault();
         if (!e.repeat) this.useStart();
@@ -150,6 +166,7 @@ export class Input {
     audio.click();
     if (holder === 'pointer') {
       this.heldPointer = tool;
+      this.tipY = BENCH.top + tool.holdHeight;
       this.host.controls.enabled = false;
       this.host.onHoldChange(tool);
     } else if (hand) {
@@ -218,15 +235,19 @@ export class Input {
     this.canvas.style.cursor = hit?.tool ? 'grab' : hit?.press || onButton ? 'pointer' : '';
   }
 
-  /** Mouse/finger holding: float above the bench, face the camera, snap onto targets. */
+  /**
+   * Mouse/finger holding. The tool's tip (spout, dropper tip, splint end, tube mouth) goes exactly
+   * where the cursor points, at the current height; the wheel raises and lowers it. Nothing pulls
+   * it towards containers: you aim it yourself, and tilting pivots around the spout.
+   */
   private placeHeld(tool: Tool, dt: number) {
     const cam = this.host.camera;
     this.raycaster.setFromCamera(this.ndc, cam);
-    const plane = new THREE.Plane(UP, -(BENCH.top + HOLD_HEIGHT));
+    const plane = new THREE.Plane(UP, -this.tipY);
     const p = new THREE.Vector3();
-    if (!this.raycaster.ray.intersectPlane(plane, p)) p.copy(tool.root.position);
-    p.x = THREE.MathUtils.clamp(p.x, -BENCH.width / 2 + 0.05, BENCH.width / 2 - 0.05);
-    p.z = THREE.MathUtils.clamp(p.z, BENCH.back + 0.05, BENCH.front + 0.08);
+    if (!this.raycaster.ray.intersectPlane(plane, p)) p.copy(tool.tipWorld(new THREE.Vector3()));
+    p.x = THREE.MathUtils.clamp(p.x, -1.6, 1.6);
+    p.z = THREE.MathUtils.clamp(p.z, -1.3, 0.8);
 
     const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
     right.y = 0;
@@ -239,42 +260,15 @@ export class Input {
       .multiply(new THREE.Quaternion().setFromAxisAngle(UP, Math.atan2(-right.z, right.x)))
       .multiply(tool.desktopQuat);
 
-    const pos = p.clone().sub(new THREE.Vector3(0, tool.gripOffset, 0).applyQuaternion(q));
-    const snap = this.findSnap(tool);
-    if (snap) {
-      snap.y += tool.snapLift;
-      pos.copy(snap).sub(tool.tip.clone().applyQuaternion(q));
-    }
-    const k = 1 - Math.exp(-dt * 18);
+    const pos = p.sub(tool.tip.clone().applyQuaternion(q));
+    const k = 1 - Math.exp(-dt * 20);
     tool.root.position.lerp(pos, k);
     tool.root.quaternion.slerp(q, k);
   }
 
-  /** The snap target nearest the cursor on screen, if it is close enough. */
-  private findSnap(tool: Tool) {
-    const lab = this.host.lab();
-    const aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
-    const v = new THREE.Vector3();
-    let best: THREE.Vector3 | null = null;
-    let bestD = 0.22;
-    for (const s of lab.snaps) {
-      if (s.vessel && s.vessel === tool.vessel) continue;
-      if (s.vessel && lab.tools.some((t) => t.vessel === s.vessel && (t.held !== null || t.returning >= 0))) continue;
-      for (const kind of s.kinds) {
-        if (!tool.snapKinds.includes(kind)) continue;
-        const pt = s.point(kind, new THREE.Vector3());
-        if (!pt) continue;
-        v.copy(pt).setY(pt.y + Math.max(0.04, tool.snapLift)).project(this.host.camera);
-        const dx = (v.x - this.ndc.x) * aspect;
-        const dy = v.y - this.ndc.y;
-        const d = Math.hypot(dx, dy);
-        if (d < bestD) {
-          bestD = d;
-          best = pt;
-        }
-      }
-    }
-    return best;
+  /** Raise or lower the held tool (mouse wheel, arrow keys, or the on-screen buttons). */
+  nudgeHeight(dy: number) {
+    this.tipY = THREE.MathUtils.clamp(this.tipY + dy, 0.03, BENCH.top + 0.75);
   }
 
   // ---- VR controllers and hands ----

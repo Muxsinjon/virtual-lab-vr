@@ -226,6 +226,19 @@ export class App {
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) use.addEventListener(ev, () => this.input.useEnd());
     $('vr').addEventListener('click', () => this.enterVR());
+    // Raise / lower while the button is held down.
+    for (const [id, dy] of [['up', 0.012], ['down', -0.012]] as const) {
+      const btn = $(id);
+      let timer = 0;
+      const stop = () => clearInterval(timer);
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.input.nudgeHeight(dy);
+        stop();
+        timer = window.setInterval(() => this.input.nudgeHeight(dy), 40);
+      });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+    }
     const xr = navigator.xr;
     if (xr) {
       void xr.isSessionSupported('immersive-vr').then((ok) => {
@@ -251,6 +264,8 @@ export class App {
     }
     if (this.topic) select.value = this.topic.id;
     $('vr').classList.toggle('off', !this.xrSupported);
+    $('up').title = t('ui.up');
+    $('down').title = t('ui.down');
     const touch = matchMedia('(pointer: coarse)').matches;
     $('hint').textContent = t(touch ? 'hint.touch' : 'hint.mouse');
     this.showHolding(this.input?.heldPointer ?? null);

@@ -7,17 +7,10 @@ import { Label, Vessel, type Draw } from './parts';
 import { BENCH } from './room';
 import { Puddles, Splashes } from './spills';
 import { blobShadowTexture } from './textures';
-import type { SnapKind, Tool } from './tools';
+import type { Tool } from './tools';
 
 // The bench simulation shared by every topic: pouring liquids and pieces, drops, bubbles,
 // tools sliding home, and the running tally of chemicals used.
-
-export interface SnapTarget {
-  kinds: SnapKind[];
-  vessel?: Vessel;
-  /** World position for this kind of snap, or null if it doesn't apply right now. */
-  point(kind: SnapKind, target: THREE.Vector3): THREE.Vector3 | null;
-}
 
 export type UsageUnit = 'ml' | 'pieces' | 'drops' | 'spoons';
 export interface UsageEntry {
@@ -106,7 +99,6 @@ export class Lab {
   readonly group = new THREE.Group();
   readonly tools: Tool[] = [];
   readonly vessels: Vessel[] = [];
-  readonly snaps: SnapTarget[] = [];
   readonly pressables: { mesh: THREE.Object3D; onPress: () => void }[] = [];
   readonly labels: Label[] = [];
   readonly flames: Flame[] = [];
@@ -123,6 +115,8 @@ export class Lab {
   /** Granules that fell on the bench stay where they landed. */
   private readonly strays: THREE.Mesh[] = [];
   private splashAcc = 0;
+  /** Aim guides: a dotted drop line from the held tool's tip to where things would land. */
+  private readonly guides: { line: THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial>; ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> }[] = [];
   private spillCooldown = 0;
   private fullCooldown = 0;
   /** How hard something is pouring this frame, for the pour sound. */
@@ -142,6 +136,22 @@ export class Lab {
       this.group.add(s);
     }
     this.group.add(this.flash.mesh, this.splashes.mesh, this.puddles.group);
+    for (let i = 0; i < 3; i++) {
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, -1, 0)]),
+        new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.006, gapSize: 0.005, transparent: true, opacity: 0.75, depthTest: false }),
+      );
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.005, 0.0085, 24),
+        new THREE.MeshBasicMaterial({ color: 0x4fe3c1, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      line.renderOrder = ring.renderOrder = 998;
+      line.visible = ring.visible = false;
+      line.frustumCulled = false;
+      this.group.add(line, ring);
+      this.guides.push({ line, ring });
+    }
     // On the bench top a puddle stops at the edges; what runs over drips to the floor below.
     this.puddles.limit = (x, y, z) => {
       if (y < BENCH.top - 0.01) return { maxR: 0.32 };
@@ -182,26 +192,6 @@ export class Lab {
 
   private trackVessel(v: Vessel) {
     this.vessels.push(v);
-    if (v.infinite) return;
-    this.snaps.push({
-      kinds: ['mouth', 'liquid'],
-      vessel: v,
-      point: (kind, target) => {
-        v.mouthWorld(target);
-        if (kind === 'liquid') {
-          const floor = v.root.getWorldPosition(new THREE.Vector3()).y + 0.008;
-          target.y = Math.max(floor, Math.min(target.y - 0.02, v.surfaceWorldY() - 0.012));
-        }
-        return target;
-      },
-    });
-  }
-
-  addFlameSnap(flame: Flame) {
-    this.snaps.push({
-      kinds: ['flame'],
-      point: (_kind, target) => (flame.lit ? flame.group.getWorldPosition(target).setY(target.y + 0.035) : null),
-    });
   }
 
   addPressable(mesh: THREE.Object3D, onPress: () => void) {
@@ -223,21 +213,34 @@ export class Lab {
     });
   }
 
-  private vesselBelow(p: THREE.Vector3, except?: Vessel) {
+  /**
+   * What is under something falling from `p`: the highest open container whose mouth it reaches,
+   * and how much of a stream `w` wide (half-width) goes in. The rest hits the rim and runs down
+   * the outside. Nothing is pulled in: only what is really above the opening gets in.
+   */
+  catchAt(p: THREE.Vector3, w: number, except?: Vessel) {
     const m = new THREE.Vector3();
-    let best: Vessel | null = null;
-    let bestY = -Infinity;
+    let best: { vessel: Vessel; inside: number; mouth: THREE.Vector3; d: number } | null = null;
     for (const v of this.openVessels(except)) {
       v.mouthWorld(m);
-      const dx = p.x - m.x;
-      const dz = p.z - m.z;
-      const reach = v.rimRadius + (v.sink ? 0 : 0.006);
-      if (dx * dx + dz * dz < reach * reach && p.y > m.y - 0.015 && m.y > bestY) {
-        best = v;
-        bestY = m.y;
-      }
+      if (p.y < m.y - 0.015 || (best && m.y < best.mouth.y)) continue;
+      const d = Math.hypot(p.x - m.x, p.z - m.z);
+      if (d > v.rimRadius + w + 0.002) continue;
+      const inner = v.sink ? v.rimRadius : v.rimRadius - 0.0015;
+      const inside = THREE.MathUtils.clamp((inner + w - d) / (2 * w), 0, 1);
+      best = { vessel: v, inside, mouth: m.clone(), d };
     }
     return best;
+  }
+
+  /** Liquid that hit a rim runs down the outside and pools at the container's foot. */
+  private runOff(mouth: THREE.Vector3, v: Vessel, from: THREE.Vector3) {
+    const dir = new THREE.Vector3(from.x - mouth.x, 0, from.z - mouth.z);
+    if (dir.lengthSq() < 1e-8) dir.set(1, 0, 0);
+    dir.normalize().multiplyScalar(v.rimRadius + 0.012);
+    const foot = new THREE.Vector3(mouth.x + dir.x, 0, mouth.z + dir.z);
+    foot.y = groundBelow(foot);
+    return foot;
   }
 
   record(key: string, name: () => string, unit: UsageUnit, amount: number) {
@@ -255,6 +258,37 @@ export class Lab {
     g.rotation.set(Math.random() * 3, Math.random() * 3, 0);
     v.solids.add(g);
     return g;
+  }
+
+  /** Show where whatever is held would land: green into a container, orange onto a rim or surface. */
+  private updateGuides() {
+    let i = 0;
+    const from = new THREE.Vector3();
+    for (const tool of this.tools) {
+      if (tool.held === null || i >= this.guides.length) continue;
+      const g = this.guides[i++];
+      if (tool.use === 'pour') this.lowestRimPoint(tool, tool.vessel ?? null, from);
+      else tool.tipWorld(from);
+      const hit = this.catchAt(from, 0.001, tool.vessel);
+      let y: number;
+      let good = false;
+      if (hit && hit.inside > 0.5) {
+        good = true;
+        const base = hit.vessel.root.getWorldPosition(new THREE.Vector3()).y + 0.004;
+        y = hit.vessel.sink ? hit.mouth.y - 0.008 : Math.max(base, hit.vessel.surfaceWorldY());
+      } else y = hit ? hit.mouth.y : groundBelow(from);
+      const show = from.y - y > 0.006;
+      g.line.visible = g.ring.visible = show;
+      if (!show) continue;
+      const pos = g.line.geometry.attributes.position as THREE.BufferAttribute;
+      pos.setXYZ(0, from.x, from.y, from.z);
+      pos.setXYZ(1, from.x, y, from.z);
+      pos.needsUpdate = true;
+      g.line.computeLineDistances();
+      g.ring.position.set(from.x, y + 0.001, from.z);
+      g.ring.material.color.setHex(good ? 0x4fe3c1 : 0xffa64d);
+    }
+    for (; i < this.guides.length; i++) this.guides[i].line.visible = this.guides[i].ring.visible = false;
   }
 
   /** A granule that missed lies on the bench (or floor) where it fell. */
@@ -302,7 +336,7 @@ export class Lab {
     const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(tool.root.getWorldQuaternion(new THREE.Quaternion()));
     const down = new THREE.Vector3(0, -1, 0);
     down.addScaledVector(axis, -down.dot(axis));
-    if (down.lengthSq() < 1e-6) down.set(1, 0, 0).applyQuaternion(tool.root.quaternion);
+    if (down.lengthSq() < 1e-6) down.set(1, 0, 0).applyQuaternion(tool.root.getWorldQuaternion(new THREE.Quaternion()));
     return out.copy(c).addScaledVector(down.normalize(), rimR);
   }
 
@@ -337,33 +371,57 @@ export class Lab {
     else this.record(tool.kind, tool.name, 'ml', ml);
     this.pourLevel = Math.max(this.pourLevel, k);
 
-    const target = this.vesselBelow(spout, s);
     const { color, opacity } = s.tint(s.mix);
-    let endY: number;
-    // Splash where the stream lands: hard on a surface, gentle into liquid.
-    this.splashAcc += dt * (target && !target.sink ? 20 : 110) * k;
+    // The stream lands where it really falls. It wavers a little more the further it drops, so a
+    // stream poured onto a rim splits: some goes in, the rest runs down the outside.
+    const fall = THREE.MathUtils.clamp(spout.y - BENCH.top, 0, 1);
+    const jitter = 0.001 + 0.007 * fall;
+    const impact = spout.clone();
+    impact.x += (Math.random() - 0.5) * 2 * jitter;
+    impact.z += (Math.random() - 0.5) * 2 * jitter;
+    const w = 0.0022 + 0.0018 * k; // half-width of the stream
+    const hit = this.catchAt(impact, w, s);
+    const inside = hit ? hit.inside : 0;
+    const inMl = ml * inside;
+    const outMl = ml - inMl;
+
+    this.splashAcc += dt * 110 * k;
     const splashes = Math.floor(this.splashAcc);
     this.splashAcc -= splashes;
-    if (target) {
-      endY = target.sink ? target.mouthWorld(new THREE.Vector3()).y - 0.02 : target.surfaceWorldY();
+    let endY: number;
+    if (hit && inMl > 0) {
+      const target = hit.vessel;
       if (!target.sink) {
         const room = target.capacity - target.mix.volume;
         if (room <= 0.01) {
           if (this.fullCooldown <= 0) this.toast('toast.full');
           this.fullCooldown = 3;
         } else {
-          const fits = scaled(part, Math.min(1, room / ml));
+          const fits = scaled(part, Math.min(inside, room / ml));
           addTo(target.mix, fits);
           target.onReceive?.(fits);
         }
       }
-      this.splashes.emit(new THREE.Vector3(spout.x, endY, spout.z), color, splashes, target.sink ? 0.8 : 0.35);
+    }
+    if (hit && inside >= 0.5) {
+      endY = hit.vessel.sink ? hit.mouth.y - 0.02 : hit.vessel.surfaceWorldY();
+      const gentle = hit.vessel.sink ? 0.8 : 0.35;
+      this.splashes.emit(new THREE.Vector3(impact.x, endY, impact.z), color, Math.round(splashes * (hit.vessel.sink ? 1 : 0.2)), gentle);
+    } else if (hit) {
+      // Striking the rim: it splashes off the glass.
+      endY = hit.mouth.y;
+      this.splashes.emit(new THREE.Vector3(impact.x, endY, impact.z), color, splashes, 0.7);
     } else {
-      endY = groundBelow(spout);
-      this.splashes.emit(new THREE.Vector3(spout.x, endY, spout.z), color, splashes, 1);
-      this.puddles.add(spout.x, endY, spout.z, ml, color, puddleOpacity(opacity));
-      if (this.spillCooldown <= 0) this.toast('toast.spill');
-      this.spillCooldown = 4;
+      endY = groundBelow(impact);
+      this.splashes.emit(new THREE.Vector3(impact.x, endY, impact.z), color, splashes, 1);
+    }
+    if (outMl > 0.0001) {
+      const at = hit ? this.runOff(hit.mouth, hit.vessel, impact) : new THREE.Vector3(impact.x, groundBelow(impact), impact.z);
+      this.puddles.add(at.x, at.y, at.z, outMl, color, puddleOpacity(opacity));
+      if (outMl > ml * 0.5) {
+        if (this.spillCooldown <= 0) this.toast('toast.spill');
+        this.spillCooldown = 4;
+      }
     }
     stream.visible = true;
     stream.position.copy(spout);
@@ -418,16 +476,29 @@ export class Lab {
       let gone = false;
       for (const v of this.openVessels()) {
         v.mouthWorld(m);
-        const dx = pos.x - m.x;
-        const dz = pos.z - m.z;
-        const reach = v.rimRadius + 0.006;
-        if (prevY >= m.y && pos.y < m.y && dx * dx + dz * dz < reach * reach) {
+        if (!(prevY >= m.y && pos.y < m.y)) continue;
+        const d = Math.hypot(pos.x - m.x, pos.z - m.z);
+        const inner = v.sink ? v.rimRadius : v.rimRadius - 0.0015;
+        if (d < inner) {
           if (!v.sink) {
             addTo(v.mix, p.part);
             if (p.kind === 'piece') this.addGranule(v, p.color, p.size);
             v.onReceive?.(p.part);
           }
           if (p.kind === 'piece') audio.plop();
+          gone = true;
+          break;
+        }
+        if (!v.sink && d < v.rimRadius + p.size + 0.001) {
+          // Hit the rim: it ends up outside, at the foot of the glass.
+          const foot = this.runOff(m, v, pos);
+          if (p.kind === 'drop') {
+            this.splashes.emit(pos, p.color, 3, 0.35);
+            this.puddles.add(foot.x, foot.y, foot.z, p.part.volume, p.color, 0.8);
+          } else {
+            p.mesh.position.copy(foot);
+            this.leaveStray(p, foot.y);
+          }
           gone = true;
           break;
         }
@@ -459,6 +530,7 @@ export class Lab {
     }
     audio.setFizz(Math.min(1, fizz / 40));
     this.splashes.update(dt);
+    this.updateGuides();
     for (const f of this.flames) f.update(dt);
     this.flash.update(dt);
   }
