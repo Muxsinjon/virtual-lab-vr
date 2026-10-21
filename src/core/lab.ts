@@ -115,8 +115,6 @@ export class Lab {
   /** Granules that fell on the bench stay where they landed. */
   private readonly strays: THREE.Mesh[] = [];
   private splashAcc = 0;
-  /** Aim guides: a dotted drop line from the held tool's tip to where things would land. */
-  private readonly guides: { line: THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial>; ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> }[] = [];
   private spillCooldown = 0;
   private fullCooldown = 0;
   /** How hard something is pouring this frame, for the pour sound. */
@@ -136,22 +134,6 @@ export class Lab {
       this.group.add(s);
     }
     this.group.add(this.flash.mesh, this.splashes.mesh, this.puddles.group);
-    for (let i = 0; i < 3; i++) {
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, -1, 0)]),
-        new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.006, gapSize: 0.005, transparent: true, opacity: 0.75, depthTest: false }),
-      );
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.005, 0.0085, 24),
-        new THREE.MeshBasicMaterial({ color: 0x4fe3c1, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      line.renderOrder = ring.renderOrder = 998;
-      line.visible = ring.visible = false;
-      line.frustumCulled = false;
-      this.group.add(line, ring);
-      this.guides.push({ line, ring });
-    }
     // On the bench top a puddle stops at the edges; what runs over drips to the floor below.
     this.puddles.limit = (x, y, z) => {
       if (y < BENCH.top - 0.01) return { maxR: 0.32 };
@@ -258,37 +240,6 @@ export class Lab {
     g.rotation.set(Math.random() * 3, Math.random() * 3, 0);
     v.solids.add(g);
     return g;
-  }
-
-  /** Show where whatever is held would land: green into a container, orange onto a rim or surface. */
-  private updateGuides() {
-    let i = 0;
-    const from = new THREE.Vector3();
-    for (const tool of this.tools) {
-      if (tool.held === null || i >= this.guides.length) continue;
-      const g = this.guides[i++];
-      if (tool.use === 'pour') this.lowestRimPoint(tool, tool.vessel ?? null, from);
-      else tool.tipWorld(from);
-      const hit = this.catchAt(from, 0.001, tool.vessel);
-      let y: number;
-      let good = false;
-      if (hit && hit.inside > 0.5) {
-        good = true;
-        const base = hit.vessel.root.getWorldPosition(new THREE.Vector3()).y + 0.004;
-        y = hit.vessel.sink ? hit.mouth.y - 0.008 : Math.max(base, hit.vessel.surfaceWorldY());
-      } else y = hit ? hit.mouth.y : groundBelow(from);
-      const show = from.y - y > 0.006;
-      g.line.visible = g.ring.visible = show;
-      if (!show) continue;
-      const pos = g.line.geometry.attributes.position as THREE.BufferAttribute;
-      pos.setXYZ(0, from.x, from.y, from.z);
-      pos.setXYZ(1, from.x, y, from.z);
-      pos.needsUpdate = true;
-      g.line.computeLineDistances();
-      g.ring.position.set(from.x, y + 0.001, from.z);
-      g.ring.material.color.setHex(good ? 0x4fe3c1 : 0xffa64d);
-    }
-    for (; i < this.guides.length; i++) this.guides[i].line.visible = this.guides[i].ring.visible = false;
   }
 
   /** A granule that missed lies on the bench (or floor) where it fell. */
@@ -530,7 +481,6 @@ export class Lab {
     }
     audio.setFizz(Math.min(1, fizz / 40));
     this.splashes.update(dt);
-    this.updateGuides();
     for (const f of this.flames) f.update(dt);
     this.flash.update(dt);
   }

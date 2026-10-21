@@ -37,8 +37,7 @@ More topics (separating a mixture, lab equipment) are added one at a time; see `
 ## Try it
 
 **On a computer or phone**: open the site. Click an item to pick it up: its spout or tip follows the
-cursor anywhere, and the mouse wheel (or ↑/↓) raises and lowers it. A dotted line shows where things
-will land: green into a container, orange onto the bench. Hold the mouse button to pour; right-click
+cursor anywhere, and the mouse wheel (or ↑/↓) raises and lowers it. Hold the mouse button to pour; right-click
 or Esc puts it back. Nothing snaps into place, so a careless pour spills, and a stream on a rim splits
 between the glass and the bench. On a phone, tap to pick up, drag to move, and use the on-screen buttons.
 
