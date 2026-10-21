@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { audio } from './core/audio';
 import { Input } from './core/input';
 import { Lab, type UsageEntry } from './core/lab';
 import { WorldPanel } from './core/panel';
+import { NameTag } from './core/tag';
 import { BENCH, buildRoom } from './core/room';
 import type { Tool } from './core/tools';
 import { getLang, onLangChange, setLang, t, type Key } from './i18n';
@@ -16,10 +16,11 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.02, 30);
+  private readonly camera = new THREE.PerspectiveCamera(45, 1, 0.02, 30);
   private readonly rig = new THREE.Group();
   private readonly controls: OrbitControls;
   private readonly panel = new WorldPanel();
+  private readonly tag = new NameTag();
   private readonly input: Input;
   private readonly clock = new THREE.Clock();
   /** Everything used this session, across topics: the "nothing runs out" tally. */
@@ -39,8 +40,8 @@ export class App {
     const r = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     r.outputColorSpace = THREE.SRGBColorSpace;
-    r.toneMapping = THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure = 1.0;
+    r.toneMapping = THREE.NeutralToneMapping;
+    r.toneMappingExposure = 1.18;
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.xr.enabled = true;
@@ -49,21 +50,23 @@ export class App {
     container.appendChild(r.domElement);
     this.renderer = r;
 
-    this.scene.background = new THREE.Color(0xdfe6ea);
-    const pmrem = new THREE.PMREMGenerator(r);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.background = new THREE.Color(0x30363a);
     buildRoom(this.scene);
+    // Reflections come from the room itself, so glass mirrors the real walls, windows and lights.
+    const pmrem = new THREE.PMREMGenerator(r);
+    this.scene.environment = pmrem.fromScene(this.scene, 0.015, 0.05, 20, { position: new THREE.Vector3(0, 1.3, -0.45) }).texture;
+    this.scene.environmentIntensity = 0.7;
+    pmrem.dispose();
 
     this.rig.add(this.camera);
-    this.scene.add(this.rig, this.panel.mesh);
+    this.scene.add(this.rig, this.panel.mesh, this.tag.sprite);
 
     this.controls = new OrbitControls(this.camera, r.domElement);
     // Aim between the bench and the task board so both are in view.
-    this.controls.target.set(0, BENCH.top + 0.26, BENCH.z - 0.2);
+    this.controls.target.set(-0.02, BENCH.top + 0.06, BENCH.z - 0.08);
     this.controls.enablePan = false;
     this.controls.enableDamping = true;
-    this.controls.minDistance = 0.35;
+    this.controls.minDistance = 0.3;
     this.controls.maxDistance = 2.6;
     this.controls.minPolarAngle = 0.25;
     this.controls.maxPolarAngle = 1.45;
@@ -89,6 +92,7 @@ export class App {
 
     window.addEventListener('resize', () => this.resize());
     this.resize(true);
+    if (matchMedia('(max-width: 720px)').matches) ($('tasks') as HTMLDetailsElement).open = false;
     r.xr.addEventListener('sessionstart', () => this.onXR(true));
     r.xr.addEventListener('sessionend', () => this.onXR(false));
     r.setAnimationLoop(() => this.frame());
@@ -166,6 +170,26 @@ export class App {
       toast: this.toastTimer > 0 ? this.toastText : '',
     });
     $('used').textContent = this.usageLines().join(' · ') || t('ui.usedNone');
+    this.fillTasks();
+  }
+
+  /** The on-screen task list (screens only; in VR the wall board shows it). */
+  private fillTasks() {
+    const steps = this.topic.steps ?? [];
+    const doneCount = steps.filter((s) => this.done.has(s.id)).length;
+    $('taskTitle').textContent = t(this.topic.title);
+    $('taskCount').textContent = `${doneCount}/${steps.length}`;
+    const list = $('taskList');
+    list.innerHTML = '';
+    const next = steps.find((s) => !this.done.has(s.id));
+    for (const s of steps) {
+      const li = document.createElement('li');
+      li.textContent = t(s.key);
+      if (this.done.has(s.id)) li.className = 'done';
+      else if (s === next) li.className = 'next';
+      list.appendChild(li);
+    }
+    $('taskInfo').textContent = this.topic.info ? t(this.topic.info) : '';
   }
 
   private onButton(id: string) {
@@ -273,9 +297,12 @@ export class App {
     if (first) {
       // Back off far enough that the whole bench fits the width of the screen.
       const half = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-      const dist = THREE.MathUtils.clamp(0.95 / (half * this.camera.aspect), 1.25, 2.6);
+      // Where a student's eyes would be, standing at the bench; narrow screens step back until
+      // the whole bench fits.
+      const dist = Math.max(1.0, 0.86 / (half * this.camera.aspect));
       const tgt = this.controls.target;
-      this.camera.position.set(tgt.x, tgt.y + Math.sin(0.42) * dist, tgt.z + Math.cos(0.42) * dist);
+      const elev = 0.6;
+      this.camera.position.set(tgt.x, tgt.y + Math.sin(elev) * Math.min(dist, 1.6), tgt.z + Math.cos(elev) * dist);
       this.controls.update();
     }
   }
@@ -286,6 +313,7 @@ export class App {
     this.input.update(dt);
     this.lab.update(dt);
     this.topicUpdate(dt);
+    this.tag.update(this.input.focus(), dt, this.renderer.xr.isPresenting ? 1.3 : 1);
 
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;

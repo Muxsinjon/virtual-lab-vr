@@ -3,8 +3,9 @@ import { addTo, scaled, type Mixture } from '../chem/mixture';
 import type { Key } from '../i18n';
 import { audio } from './audio';
 import { Flame, Flash } from './fx';
-import { Label, Vessel } from './parts';
+import { Label, Vessel, type Draw } from './parts';
 import { BENCH } from './room';
+import { blobShadowTexture } from './textures';
 import type { SnapKind, Tool } from './tools';
 
 // The bench simulation shared by every topic: pouring liquids and pieces, drops, bubbles,
@@ -113,6 +114,9 @@ export class Lab {
   private readonly particles: Particle[] = [];
   private readonly bubbles = new Map<Vessel, Bubbles>();
   private readonly solidAcc = new Map<Tool, number>();
+  /** Soft contact shadows under each tool; glass casts no real shadow, so this grounds it. */
+  private readonly blobs = new Map<Tool, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
+  private readonly blobTexture = blobShadowTexture();
   private spillCooldown = 0;
   private fullCooldown = 0;
   /** How hard something is pouring this frame, for the pour sound. */
@@ -137,6 +141,17 @@ export class Lab {
   addTool(tool: Tool) {
     this.tools.push(tool);
     this.group.add(tool.root);
+    if (tool.kind !== 'splint') {
+      const size = (tool.vessel ? tool.vessel.radius : 0.022) * 3.2;
+      const blob = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({ map: this.blobTexture, transparent: true, depthWrite: false, opacity: 0.6 }),
+      );
+      blob.rotation.x = -Math.PI / 2;
+      blob.renderOrder = 0;
+      this.group.add(blob);
+      this.blobs.set(tool, blob);
+    }
     if (tool.vessel) this.trackVessel(tool.vessel);
     return tool;
   }
@@ -176,8 +191,8 @@ export class Lab {
     this.pressables.push({ mesh, onPress });
   }
 
-  label(w: number, h: number, lines: () => string[], style?: ConstructorParameters<typeof Label>[3]) {
-    const l = new Label(w, h, lines, style);
+  label(w: number, h: number, draw: Draw, transparent = false) {
+    const l = new Label(w, h, draw, transparent);
     this.labels.push(l);
     return l;
   }
@@ -341,6 +356,16 @@ export class Lab {
       }
     }
     audio.setPour(this.pourLevel);
+    const p = new THREE.Vector3();
+    for (const [tool, blob] of this.blobs) {
+      tool.root.getWorldPosition(p);
+      const lift = Math.max(0, p.y - BENCH.top);
+      const overBench = Math.abs(p.x) < BENCH.width / 2 && p.z < BENCH.front && p.z > BENCH.back;
+      blob.visible = overBench && lift < 0.4;
+      blob.position.set(p.x, BENCH.top + 0.0008, p.z);
+      blob.material.opacity = 0.6 * Math.max(0, 1 - lift / 0.35);
+      blob.scale.setScalar(1 + lift * 2.5);
+    }
 
     const m = new THREE.Vector3();
     for (let i = 0; i < this.particles.length; i++) {

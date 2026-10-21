@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { t } from '../i18n';
 import { fitText } from './parts';
+import { BOARD } from './room';
 
 // The board behind the bench: task list, topic menu and buttons. It is a canvas texture, so the
 // same board works in VR (controller ray) and on a screen (mouse or finger).
@@ -43,9 +44,9 @@ export class WorldPanel {
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.anisotropy = 8;
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.12, 0.7), new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false }));
-    this.mesh.position.set(0, 1.4, -1.12);
-    this.mesh.rotation.x = -0.12;
+    // A wall-mounted smart board above the bench.
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOARD.w, BOARD.h), new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false }));
+    this.mesh.position.set(BOARD.x, BOARD.y, BOARD.z);
   }
 
   set(data: PanelData) {
@@ -129,15 +130,15 @@ export class WorldPanel {
       this.button(c, 'back', `← ${t('ui.back')}`, 60, H - 150, 320, 95);
     } else {
       c.fillStyle = '#ffffff';
-      c.font = '700 54px "Segoe UI", system-ui, sans-serif';
-      fitText(c, d.title, W - 120, 54, 700);
-      c.fillText(d.title, 60, 140);
+      c.font = '700 62px "Segoe UI", system-ui, sans-serif';
+      fitText(c, d.title, W - 120, 62, 700);
+      c.fillText(d.title, 60, 145);
 
       c.fillStyle = '#9fb3c3';
       c.font = '600 30px "Segoe UI", system-ui, sans-serif';
       c.fillText(t('ui.steps'), 60, 205);
       d.steps.forEach((s, i) => {
-        const y = 255 + i * 66;
+        const y = 262 + i * 76;
         c.fillStyle = s.done ? '#2a9d8a' : 'transparent';
         c.strokeStyle = s.done ? '#2a9d8a' : '#9fb3c3';
         c.lineWidth = 4;
@@ -154,18 +155,18 @@ export class WorldPanel {
           c.stroke();
         }
         c.fillStyle = s.done ? '#8fa6b6' : '#ffffff';
-        c.font = '500 34px "Segoe UI", system-ui, sans-serif';
-        fitText(c, s.text, 1000, 34, 500);
+        c.font = '600 40px "Segoe UI", system-ui, sans-serif';
+        fitText(c, s.text, 1000, 40, 600);
         c.fillText(s.text, 125, y);
       });
 
       // Equation / explanation box.
-      const infoY = 255 + d.steps.length * 66 + 10;
+      const infoY = 262 + d.steps.length * 76 - 10;
       c.fillStyle = '#1e3243';
-      roundRect(c, 60, infoY, 1050, 130, 16);
+      roundRect(c, 60, infoY, 1050, 150, 16);
       c.fill();
       c.fillStyle = '#e8f1f6';
-      wrap(c, d.info, 85, infoY + 50, 1000, 40, '500 31px "Segoe UI", system-ui, sans-serif', 3);
+      wrap(c, d.info, 85, infoY + 52, 1000, 44, '500 34px "Segoe UI", system-ui, sans-serif', 3);
 
       // Usage: the point of the whole project, nothing runs out.
       const ux = 1160;
@@ -198,15 +199,17 @@ export class WorldPanel {
       }
     }
 
+    // Messages appear as a banner across the top of the board.
     if (d.toast) {
-      c.fillStyle = 'rgba(244, 201, 93, 0.96)';
-      roundRect(c, 60, H - 265, W - 120, 90, 16);
+      c.fillStyle = 'rgba(244, 201, 93, 0.97)';
+      roundRect(c, 40, 30, W - 80, 130, 18);
       c.fill();
       c.fillStyle = '#1b2533';
       c.textAlign = 'center';
-      c.font = '600 34px "Segoe UI", system-ui, sans-serif';
-      fitText(c, d.toast, W - 180, 34, 600);
-      c.fillText(d.toast, W / 2, H - 208);
+      c.textBaseline = 'middle';
+      c.font = '700 44px "Segoe UI", system-ui, sans-serif';
+      fitText(c, d.toast, W - 160, 44, 700);
+      c.fillText(d.toast, W / 2, 96);
     }
     this.texture.needsUpdate = true;
   }

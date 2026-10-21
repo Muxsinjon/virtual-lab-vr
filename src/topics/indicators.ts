@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { indicatorStrength, pHOf, solutionTint, type Indicator } from '../chem/acidBase';
-import { beaker, dropper, phProbe, reagentBottle, sink } from '../core/kit';
+import { BAND, beaker, dropper, phProbe, reagentBottle, sink } from '../core/kit';
 import type { Vessel } from '../core/parts';
 import type { TopicDef } from './topic';
 
@@ -24,18 +24,18 @@ export const indicators: TopicDef = {
   ],
   build(lab, api) {
     // 0.1 M solutions; amounts are per 100 mL. `acid` is mol of H⁺ (negative = OH⁻).
-    reagentBottle(lab, 'item.hcl', 'HCl 0,1 M', { volume: 100, amounts: { acid: 0.01 } }, -0.72, -0.8);
-    reagentBottle(lab, 'item.naoh', 'NaOH 0,1 M', { volume: 100, amounts: { acid: -0.01 } }, -0.6, -0.8);
-    reagentBottle(lab, 'item.water', 'H₂O', { volume: 100, amounts: {} }, -0.48, -0.8);
+    reagentBottle(lab, { key: 'item.hcl', formula: 'HCl', detail: '0.1 M', band: BAND.acid, hazard: 'corrosive' }, { volume: 100, amounts: { acid: 0.01 } }, -0.5, -0.76);
+    reagentBottle(lab, { key: 'item.naoh', formula: 'NaOH', detail: '0.1 M', band: BAND.base, hazard: 'corrosive' }, { volume: 100, amounts: { acid: -0.01 } }, -0.39, -0.76);
+    reagentBottle(lab, { key: 'item.water', formula: 'H₂O', detail: 'dist.', band: BAND.neutral }, { volume: 100, amounts: {} }, -0.28, -0.76);
 
-    const beakers = [-0.34, -0.14, 0.06].map((x) => beaker(lab, x, -0.5).vessel!);
+    const beakers = [-0.24, -0.04, 0.16].map((x) => beaker(lab, x, -0.47).vessel!);
 
-    dropper(lab, 'item.litmus', drop('litmus'), 0x7a3e9d, -0.02, -0.82);
-    dropper(lab, 'item.phenol', drop('phenol'), 0xe9eef0, 0.06, -0.82);
-    dropper(lab, 'item.methyl', drop('methyl'), 0xf07a1a, 0.14, -0.82);
-    dropper(lab, 'item.universal', drop('universal'), 0x3fae49, 0.22, -0.82);
+    dropper(lab, 'item.litmus', drop('litmus'), 0x7a3e9d, -0.08, -0.8);
+    dropper(lab, 'item.phenol', drop('phenol'), 0xe9eef0, 0.0, -0.8);
+    dropper(lab, 'item.methyl', drop('methyl'), 0xf07a1a, 0.08, -0.8);
+    dropper(lab, 'item.universal', drop('universal'), 0x3fae49, 0.16, -0.8);
 
-    const probe = phProbe(lab, 0.38, -0.78);
+    const probe = phProbe(lab, 0.36, -0.74);
     sink(lab);
 
     for (const v of lab.vessels) v.tint = solutionTint;

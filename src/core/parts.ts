@@ -4,29 +4,51 @@ import { emptyMix, type Mixture, type Tint } from '../chem/mixture';
 // Glassware, labels and the Vessel class (anything that can hold a mixture).
 // Units are metres; every object's origin is at its base unless noted.
 
-export const glassMaterial = () =>
-  new THREE.MeshStandardMaterial({
-    color: 0xf4fbff,
-    roughness: 0.04,
+/**
+ * Glass: nearly clear face-on, more opaque and reflective towards the edges (Fresnel), which is
+ * what makes real glassware read as glass. Cheap enough for a headset: no refraction pass.
+ */
+export const glassMaterial = (tint = 0xeef6f8, base = 0.08, edge = 0.6) => {
+  const m = new THREE.MeshStandardMaterial({
+    color: tint,
+    roughness: 0.03,
     metalness: 0.0,
     transparent: true,
-    opacity: 0.2,
-    envMapIntensity: 1.6,
+    opacity: base,
+    envMapIntensity: 2.4,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.edge = { value: edge };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform float edge;\nvoid main() {')
+      .replace(
+        '#include <opaque_fragment>',
+        `float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
+        float fres = pow(1.0 - facing, 2.5);
+        diffuseColor.a = clamp(diffuseColor.a + edge * fres, 0.0, 0.92);
+        outgoingLight += vec3(0.9, 0.95, 1.0) * fres * 0.35;
+        #include <opaque_fragment>`,
+      );
+  };
+  m.customProgramCacheKey = () => `glass-${edge}`;
+  return m;
+};
 
 const rimMaterial = () =>
   new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.1,
+    color: 0xf6fbfc,
+    roughness: 0.08,
     transparent: true,
-    opacity: 0.45,
-    envMapIntensity: 1.5,
+    opacity: 0.6,
+    envMapIntensity: 2,
     depthWrite: false,
   });
 
-export const solidMaterial = (color: number, roughness = 0.6, metalness = 0) =>
+const WHITE = new THREE.Color(0xffffff);
+
+export const solidMaterial =(color: number, roughness = 0.6, metalness = 0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
 /** A thin-walled lathe profile: flat (beaker) or round (test tube) bottom. */
@@ -77,7 +99,7 @@ export class Vessel {
   readonly infinite: boolean;
   readonly sink: boolean;
   /** Turns the mixture into a liquid colour; each topic sets its own. */
-  tint: (m: Mixture) => Tint = () => ({ color: 0xcfe6f5, opacity: 0.35 });
+  tint: (m: Mixture) => Tint = () => ({ color: 0xb9d8e6, opacity: 0.22 });
   /** Bubbles per second, set by the topic's reaction. */
   bubbleRate = 0;
   /** Shown level for infinite bottles, which never change. */
@@ -127,8 +149,18 @@ export class Vessel {
     this.liquid.renderOrder = 1;
     this.liquid.visible = false;
     this.liquid.scale.setScalar(0.001);
-    this.root.add(this.liquid, this.solids);
+    // The liquid's top surface: shinier and a touch lighter, like a real meniscus catching light.
+    this.surface = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 28),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.02, transparent: true, opacity: 0.5, depthWrite: false, envMapIntensity: 2 }),
+    );
+    this.surface.rotation.x = -Math.PI / 2;
+    this.surface.renderOrder = 1;
+    this.surface.visible = false;
+    this.root.add(this.liquid, this.surface, this.solids);
   }
+
+  private readonly surface: THREE.Mesh<THREE.CircleGeometry, THREE.MeshStandardMaterial>;
 
   get fill() {
     if (this.infinite) return this.shownFill;
@@ -157,68 +189,152 @@ export class Vessel {
     const h = this.liquidHeight();
     const show = h > 0.0008 && !this.sink;
     this.liquid.visible = show;
+    this.surface.visible = show;
     if (!show) return;
     const r = this.radius * 0.97;
     this.liquid.scale.set(r, h, r);
     this.liquid.position.y = h / 2 + 0.001;
+    this.surface.scale.set(r, r, 1);
+    this.surface.position.y = h + 0.0012;
     const { color, opacity } = this.tint(this.mix);
     this.liquid.material.color.setHex(color);
-    this.liquid.material.opacity = opacity;
+    this.liquid.material.opacity = Math.min(0.92, opacity + 0.1);
+    this.surface.material.color.setHex(color).lerp(WHITE, 0.25);
+    this.surface.material.opacity = Math.min(0.95, opacity + 0.25);
   }
 }
 
-/** Text on a small canvas, drawn again when the language changes. */
+export type Draw = (c: CanvasRenderingContext2D, W: number, H: number) => void;
+
+/** A printed label: a canvas drawn again when the language changes. Lit like paper, but never too dark to read. */
 export class Label {
-  readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
   private readonly canvas = document.createElement('canvas');
   private readonly texture: THREE.CanvasTexture;
 
   constructor(
     w: number,
     h: number,
-    private readonly lines: () => string[],
-    private readonly style: { bg: string; fg: string; px?: number; border?: string } = { bg: '#fffdf5', fg: '#1d2a3a' },
+    private readonly draw: Draw,
+    transparent = false,
+    pxPerMetre = 6000,
   ) {
-    const scale = 1400; // canvas px per metre
-    this.canvas.width = Math.round(w * scale);
-    this.canvas.height = Math.round(h * scale);
+    this.canvas.width = Math.round(w * pxPerMetre);
+    this.canvas.height = Math.round(h * pxPerMetre);
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = 4;
+    this.texture.anisotropy = 8;
     this.mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(w, h),
-      new THREE.MeshBasicMaterial({ map: this.texture, transparent: style.bg === 'transparent' }),
+      new THREE.MeshStandardMaterial({
+        map: this.texture,
+        roughness: 0.75,
+        emissive: 0xffffff,
+        emissiveMap: this.texture,
+        emissiveIntensity: 0.28,
+        transparent,
+        depthWrite: !transparent,
+      }),
     );
     this.redraw();
   }
 
   redraw() {
     const c = this.canvas.getContext('2d')!;
-    const { width: W, height: H } = this.canvas;
-    c.clearRect(0, 0, W, H);
-    if (this.style.bg !== 'transparent') {
-      c.fillStyle = this.style.bg;
-      c.fillRect(0, 0, W, H);
-    }
-    if (this.style.border) {
-      c.strokeStyle = this.style.border;
-      c.lineWidth = Math.max(2, H * 0.06);
-      c.strokeRect(0, 0, W, H);
-    }
-    const lines = this.lines();
-    const px = this.style.px ?? Math.min(H / (lines.length * 1.35), W / 6);
-    c.fillStyle = this.style.fg;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    lines.forEach((line, i) => {
-      const size = i === 0 ? px : px * 0.78;
-      c.font = `${i === 0 ? 700 : 500} ${size}px "Segoe UI", system-ui, sans-serif`;
-      fitText(c, line, W * 0.92, size, i === 0 ? 700 : 500);
-      c.fillText(line, W / 2, (H / (lines.length + 0.2)) * (i + 0.6));
-    });
+    c.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.draw(c, this.canvas.width, this.canvas.height);
     this.texture.needsUpdate = true;
   }
 }
+
+const FONT = '"Segoe UI", system-ui, -apple-system, sans-serif';
+
+/** Plain centred lines of text; the first line is bold. */
+export const textLines =
+  (lines: () => string[], style: { bg: string; fg: string; border?: string } = { bg: '#fbf8ef', fg: '#1d2a3a' }): Draw =>
+  (c, W, H) => {
+    if (style.bg !== 'transparent') {
+      c.fillStyle = style.bg;
+      c.fillRect(0, 0, W, H);
+    }
+    if (style.border) {
+      c.strokeStyle = style.border;
+      c.lineWidth = Math.max(2, H * 0.05);
+      c.strokeRect(0, 0, W, H);
+    }
+    const ls = lines();
+    const px = Math.min(H / (ls.length * 1.3), W / 5);
+    c.fillStyle = style.fg;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    ls.forEach((line, i) => {
+      const size = i === 0 ? px : px * 0.75;
+      const weight = i === 0 ? 700 : 600;
+      c.font = `${weight} ${size}px ${FONT}`;
+      fitText(c, line, W * 0.9, size, weight);
+      c.fillText(line, W / 2, (H / (ls.length + 0.2)) * (i + 0.6));
+    });
+  };
+
+export interface ReagentInfo {
+  formula: string;
+  name: () => string;
+  detail: string; // concentration or grade, e.g. "0.1 M", "10%"
+  band: string; // colour band: red for acids, blue for bases, …
+  hazard?: 'corrosive' | 'oxidiser' | 'irritant';
+}
+
+/** A reagent-bottle label: coloured band with the name, big formula, concentration, hazard diamond. */
+export const reagentLabel =
+  (r: ReagentInfo): Draw =>
+  (c, W, H) => {
+    c.fillStyle = '#f8f5ea';
+    c.fillRect(0, 0, W, H);
+    const band = H * 0.28;
+    c.fillStyle = r.band;
+    c.fillRect(0, 0, W, band);
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    const name = r.name().toUpperCase();
+    c.font = `700 ${band * 0.5}px ${FONT}`;
+    fitText(c, name, W * 0.9, band * 0.5, 700);
+    c.fillText(name, W / 2, band * 0.53);
+
+    const hasHazard = !!r.hazard;
+    const textW = hasHazard ? W * 0.68 : W * 0.9;
+    const cx = hasHazard ? W * 0.39 : W / 2;
+    c.fillStyle = '#16212c';
+    c.font = `800 ${H * 0.34}px ${FONT}`;
+    fitText(c, r.formula, textW, H * 0.34, 800);
+    c.fillText(r.formula, cx, band + H * 0.24);
+    c.fillStyle = '#3a4754';
+    c.font = `700 ${H * 0.17}px ${FONT}`;
+    fitText(c, r.detail, textW, H * 0.17, 700);
+    c.fillText(r.detail, cx, band + H * 0.52);
+
+    if (r.hazard) {
+      // GHS-style red diamond with a simple pictogram.
+      const s = H * 0.26;
+      const x = W * 0.84;
+      const y = band + H * 0.36;
+      c.save();
+      c.translate(x, y);
+      c.rotate(Math.PI / 4);
+      c.fillStyle = '#ffffff';
+      c.fillRect(-s / 2, -s / 2, s, s);
+      c.strokeStyle = '#d21f1f';
+      c.lineWidth = s * 0.1;
+      c.strokeRect(-s / 2, -s / 2, s, s);
+      c.restore();
+      c.fillStyle = '#111111';
+      c.font = `900 ${s * 0.75}px ${FONT}`;
+      c.fillText(r.hazard === 'oxidiser' ? '◯' : r.hazard === 'corrosive' ? '⚗' : '!', x, y + s * 0.04);
+    }
+    c.strokeStyle = 'rgba(0,0,0,0.25)';
+    c.lineWidth = 2;
+    c.strokeRect(1, 1, W - 2, H - 2);
+  };
 
 /** Shrink the font until `text` fits `maxW`. */
 export function fitText(c: CanvasRenderingContext2D, text: string, maxW: number, size: number, weight: number) {

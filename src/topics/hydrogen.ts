@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { amount, change } from '../chem/mixture';
 import { audio } from '../core/audio';
-import { collectorTube, jar, rackWithTubes, reagentBottle, sink, spiritLamp } from '../core/kit';
+import { BAND, collectorTube, jar, rackWithTubes, reagentBottle, sink, spiritLamp } from '../core/kit';
 import type { TopicDef } from './topic';
 
 // Making hydrogen: Zn + 2HCl → ZnCl₂ + H₂↑. Collect the gas in an upside-down tube, then bring
@@ -25,11 +25,11 @@ export const hydrogen: TopicDef = {
   ],
   build(lab, api) {
     // 10% hydrochloric acid is about 2.9 M; amounts are per 100 mL.
-    reagentBottle(lab, 'item.hclDilute', 'HCl 10%', { volume: 100, amounts: { acid: 0.29 } }, -0.62, -0.8);
-    jar(lab, 'item.zinc', 'Zn', { volume: 0, amounts: { zn: ZN_PER_PIECE } }, 0x9aa3ab, 0.0035, -0.45, -0.8, 'pieces');
-    const { tubes, slotX } = rackWithTubes(lab, -0.12, -0.55, 3, 2);
+    reagentBottle(lab, { key: 'item.hclDilute', formula: 'HCl', detail: '10%', band: BAND.acid, hazard: 'corrosive' }, { volume: 100, amounts: { acid: 0.29 } }, -0.42, -0.76);
+    jar(lab, { key: 'item.zinc', formula: 'Zn', detail: '≥ 99%', band: BAND.metal }, { volume: 0, amounts: { zn: ZN_PER_PIECE } }, 0x9aa3ab, 0.0035, -0.28, -0.76, 'pieces');
+    const { tubes, slotX } = rackWithTubes(lab, -0.02, -0.52, 3, 2);
     const collector = collectorTube(lab, slotX(2), -0.55);
-    const flame = spiritLamp(lab, 0.32, -0.6);
+    const flame = spiritLamp(lab, 0.3, -0.58);
     sink(lab);
 
     const added = new Map<(typeof tubes)[number], number>();

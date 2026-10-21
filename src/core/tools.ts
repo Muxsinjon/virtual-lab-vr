@@ -29,6 +29,8 @@ export class Tool {
   solid?: { part: Mixture; color: number; size: number; perSecond: number; unit: 'pieces' | 'spoons' };
   /** One drop from a dropper. */
   drop?: { part: Mixture; color: number };
+  /** Second line of the floating name tag (concentration, volume, reading). */
+  detail?: () => string;
   /** mL per second at full tilt. */
   pourRate = 18;
   held: Holder | null = null;

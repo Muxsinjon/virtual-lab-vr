@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { amount, change } from '../chem/mixture';
 import { audio } from '../core/audio';
-import { jar, rackWithTubes, reagentBottle, sink, spiritLamp, splint } from '../core/kit';
+import { BAND, jar, rackWithTubes, reagentBottle, sink, spiritLamp, splint } from '../core/kit';
 import type { TopicDef } from './topic';
 
 // Making oxygen: 2H₂O₂ → 2H₂O + O₂↑ with MnO₂ as the catalyst. A glowing splint bursts back
@@ -27,11 +27,11 @@ export const oxygen: TopicDef = {
   ],
   build(lab, api) {
     // 3% hydrogen peroxide is 0.88 M; amounts are per 100 mL.
-    reagentBottle(lab, 'item.h2o2', 'H₂O₂ 3%', { volume: 100, amounts: { h2o2: 0.088 } }, -0.62, -0.8);
-    jar(lab, 'item.mno2', 'MnO₂', { volume: 0, amounts: { mno2: 1 } }, 0x1f1c1a, 0.0022, -0.45, -0.8, 'spoons');
-    const { tubes } = rackWithTubes(lab, -0.14, -0.55, 2, 2);
-    const flame = spiritLamp(lab, 0.32, -0.6);
-    const s = splint(lab, 0.0, -0.36);
+    reagentBottle(lab, { key: 'item.h2o2', formula: 'H₂O₂', detail: '3%', band: BAND.oxidiser, hazard: 'oxidiser', amber: true }, { volume: 100, amounts: { h2o2: 0.088 } }, -0.42, -0.76);
+    jar(lab, { key: 'item.mno2', formula: 'MnO₂', detail: '≥ 99%', band: BAND.metal, hazard: 'irritant' }, { volume: 0, amounts: { mno2: 1 } }, 0x1f1c1a, 0.0022, -0.28, -0.76, 'spoons');
+    const { tubes } = rackWithTubes(lab, -0.04, -0.52, 2, 2);
+    const flame = spiritLamp(lab, 0.3, -0.58);
+    const s = splint(lab, 0.08, -0.34);
     sink(lab);
 
     // Peroxide turns slightly grey-black once MnO₂ powder is stirred through it.

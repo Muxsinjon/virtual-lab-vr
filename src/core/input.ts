@@ -48,6 +48,8 @@ const POUR_TILT = 1.95;
 export class Input {
   heldPointer: Tool | null = null;
   private useActive = false;
+  /** The free tool under the mouse or a controller's ray, for the name tag. */
+  private hovered: Tool | null = null;
   private readonly ndc = new THREE.Vector2();
   private readonly raycaster = new THREE.Raycaster();
   private readonly hands: Hand[] = [];
@@ -212,6 +214,7 @@ export class Input {
     this.raycaster.setFromCamera(this.ndc, this.host.camera);
     const hit = this.pick();
     const onButton = this.host.panel.pointAt(hit?.panelUv ?? null);
+    this.hovered = hit?.tool ?? null;
     this.canvas.style.cursor = hit?.tool ? 'grab' : hit?.press || onButton ? 'pointer' : '';
   }
 
@@ -368,8 +371,16 @@ export class Input {
     if (hand.held && hand.heldBy === button) this.release(hand.held);
   }
 
+  /** What the name tag should label: something held, or else whatever is pointed at. */
+  focus(): Tool | null {
+    if (this.heldPointer) return this.heldPointer;
+    if (this.host.renderer.xr.isPresenting) return this.hands.find((h) => h.held)?.held ?? this.hovered;
+    return this.hovered;
+  }
+
   private updateHands() {
     let panelUv: THREE.Vector2 | null = null;
+    this.hovered = null;
     for (const hand of this.hands) {
       if (!hand.source) {
         hand.line.visible = false;
@@ -383,6 +394,7 @@ export class Input {
       hand.line.scale.z = hit ? hit.distance : 1.2;
       hand.line.material.color.setHex(near || hit?.tool ? 0x7fffd4 : hit ? 0xffe08a : 0xffffff);
       if (hit?.panelUv) panelUv = hit.panelUv;
+      this.hovered ??= near ?? hit?.tool ?? null;
     }
     this.host.panel.pointAt(panelUv);
   }

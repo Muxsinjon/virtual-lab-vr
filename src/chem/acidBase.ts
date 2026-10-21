@@ -51,7 +51,7 @@ export function indicatorColor(ind: Indicator, pH: number): { color: number; alp
   return { color: last[1], alpha: last[2] };
 }
 
-const WATER = 0xcfe6f5;
+const WATER = 0xb9d8e6;
 
 /** How strongly each indicator shows: a few drops in 100 mL is clearly coloured. */
 export function indicatorStrength(m: Mixture, ind: Indicator) {
@@ -62,7 +62,7 @@ export function indicatorStrength(m: Mixture, ind: Indicator) {
 
 export function solutionTint(m: Mixture): Tint {
   const pH = pHOf(m);
-  if (pH === null) return { color: WATER, opacity: 0.35 };
+  if (pH === null) return { color: WATER, opacity: 0.22 };
   // Average the visible indicator colours, then show them as strongly as the strongest one.
   let avg = WATER;
   let weight = 0;
@@ -75,5 +75,5 @@ export function solutionTint(m: Mixture): Tint {
     avg = lerpColor(avg, c, w / weight);
     strongest = Math.max(strongest, w);
   }
-  return { color: lerpColor(WATER, avg, strongest), opacity: 0.35 + 0.5 * strongest };
+  return { color: lerpColor(WATER, avg, strongest), opacity: 0.22 + 0.68 * strongest };
 }
