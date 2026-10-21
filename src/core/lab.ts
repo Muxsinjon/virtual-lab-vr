@@ -5,6 +5,7 @@ import { audio } from './audio';
 import { Flame, Flash } from './fx';
 import { Label, Vessel, type Draw } from './parts';
 import { BENCH } from './room';
+import { Puddles, Splashes } from './spills';
 import { blobShadowTexture } from './textures';
 import type { SnapKind, Tool } from './tools';
 
@@ -117,6 +118,11 @@ export class Lab {
   /** Soft contact shadows under each tool; glass casts no real shadow, so this grounds it. */
   private readonly blobs = new Map<Tool, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
   private readonly blobTexture = blobShadowTexture();
+  readonly splashes = new Splashes();
+  readonly puddles = new Puddles();
+  /** Granules that fell on the bench stay where they landed. */
+  private readonly strays: THREE.Mesh[] = [];
+  private splashAcc = 0;
   private spillCooldown = 0;
   private fullCooldown = 0;
   /** How hard something is pouring this frame, for the pour sound. */
@@ -135,7 +141,18 @@ export class Lab {
       this.streams.push(s);
       this.group.add(s);
     }
-    this.group.add(this.flash.mesh);
+    this.group.add(this.flash.mesh, this.splashes.mesh, this.puddles.group);
+    // On the bench top a puddle stops at the edges; what runs over drips to the floor below.
+    this.puddles.limit = (x, y, z) => {
+      if (y < BENCH.top - 0.01) return { maxR: 0.32 };
+      const edges = [
+        { d: x + BENCH.width / 2, to: new THREE.Vector3(-BENCH.width / 2 - 0.06, 0, z) },
+        { d: BENCH.width / 2 - x, to: new THREE.Vector3(BENCH.width / 2 + 0.06, 0, z) },
+        { d: BENCH.front - z, to: new THREE.Vector3(x, 0, BENCH.front + 0.08) },
+        { d: z - BENCH.back, to: new THREE.Vector3(x, 0, BENCH.back) },
+      ].sort((p, q) => p.d - q.d);
+      return { maxR: Math.max(0.004, edges[0].d), spillTo: edges[0].to };
+    };
   }
 
   addTool(tool: Tool) {
@@ -240,6 +257,23 @@ export class Lab {
     return g;
   }
 
+  /** A granule that missed lies on the bench (or floor) where it fell. */
+  private leaveStray(p: Particle, ground: number) {
+    const g = new THREE.Mesh(p.mesh.geometry.clone(), (p.mesh.material as THREE.Material).clone());
+    g.position.set(p.mesh.position.x + (Math.random() - 0.5) * 0.01, ground + p.size * 0.75, p.mesh.position.z + (Math.random() - 0.5) * 0.01);
+    g.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+    g.castShadow = true;
+    this.group.add(g);
+    this.strays.push(g);
+    if (this.strays.length > 120) {
+      const old = this.strays.shift()!;
+      this.group.remove(old);
+      old.geometry.dispose();
+      (old.material as THREE.Material).dispose();
+    }
+    audio.clink();
+  }
+
   /** One drop from a dropper's tip. */
   drip(tool: Tool) {
     if (!tool.drop) return;
@@ -304,7 +338,12 @@ export class Lab {
     this.pourLevel = Math.max(this.pourLevel, k);
 
     const target = this.vesselBelow(spout, s);
+    const { color, opacity } = s.tint(s.mix);
     let endY: number;
+    // Splash where the stream lands: hard on a surface, gentle into liquid.
+    this.splashAcc += dt * (target && !target.sink ? 20 : 110) * k;
+    const splashes = Math.floor(this.splashAcc);
+    this.splashAcc -= splashes;
     if (target) {
       endY = target.sink ? target.mouthWorld(new THREE.Vector3()).y - 0.02 : target.surfaceWorldY();
       if (!target.sink) {
@@ -318,16 +357,17 @@ export class Lab {
           target.onReceive?.(fits);
         }
       }
+      this.splashes.emit(new THREE.Vector3(spout.x, endY, spout.z), color, splashes, target.sink ? 0.8 : 0.35);
     } else {
-      const overBench = Math.abs(spout.x) < BENCH.width / 2 && spout.z < BENCH.front && spout.z > BENCH.back;
-      endY = overBench ? BENCH.top : 0;
+      endY = groundBelow(spout);
+      this.splashes.emit(new THREE.Vector3(spout.x, endY, spout.z), color, splashes, 1);
+      this.puddles.add(spout.x, endY, spout.z, ml, color, puddleOpacity(opacity));
       if (this.spillCooldown <= 0) this.toast('toast.spill');
       this.spillCooldown = 4;
     }
     stream.visible = true;
     stream.position.copy(spout);
     stream.scale.y = Math.max(0.005, spout.y - endY);
-    const { color, opacity } = s.tint(s.mix);
     stream.material.color.setHex(color);
     stream.material.opacity = Math.min(0.9, opacity + 0.25);
     stream.scale.x = stream.scale.z = 0.6 + k * 0.6;
@@ -392,8 +432,16 @@ export class Lab {
           break;
         }
       }
-      const overBench = Math.abs(pos.x) < BENCH.width / 2 && pos.z < BENCH.front && pos.z > BENCH.back;
-      if (pos.y < (overBench ? BENCH.top : 0)) gone = true;
+      const ground = groundBelow(pos);
+      if (!gone && pos.y < ground) {
+        gone = true;
+        pos.y = ground;
+        if (p.kind === 'drop') {
+          // A stray drop leaves a coloured spot and a tiny splash.
+          this.puddles.add(pos.x, ground, pos.z, p.part.volume, p.color, 0.8);
+          this.splashes.emit(pos, p.color, 4, 0.45);
+        } else this.leaveStray(p, ground);
+      }
       if (gone) {
         this.group.remove(p.mesh);
         p.mesh.geometry.dispose();
@@ -410,6 +458,7 @@ export class Lab {
       v.updateLook();
     }
     audio.setFizz(Math.min(1, fizz / 40));
+    this.splashes.update(dt);
     for (const f of this.flames) f.update(dt);
     this.flash.update(dt);
   }
@@ -430,3 +479,12 @@ export class Lab {
     this.group.removeFromParent();
   }
 }
+
+/** Height of whatever is under a point: the bench top, or the floor. */
+function groundBelow(p: THREE.Vector3) {
+  const overBench = Math.abs(p.x) < BENCH.width / 2 && p.z < BENCH.front && p.z > BENCH.back;
+  return overBench ? BENCH.top : 0;
+}
+
+/** Spilled liquid looks more solid than the same liquid in glass: it's a glossy film. */
+const puddleOpacity = (o: number) => THREE.MathUtils.clamp(o + 0.2, 0.45, 0.8);
