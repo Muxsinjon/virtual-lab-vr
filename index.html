@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="A free chemistry lab in VR and in the browser, where the chemicals never run out." />
+    <title>Virtual Lab VR</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚗️</text></svg>" />
+    <style>
+      :root {
+        --ink: #eef4f7;
+        --muted: #a9bccb;
+        --chip: rgba(18, 31, 43, 0.82);
+        --accent: #2a9d8a;
+        --accent-hot: #35b8a2;
+        --warn: #f4c95d;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #dfe6ea; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; }
+      #app { position: fixed; inset: 0; touch-action: none; }
+      #app canvas { display: block; }
+      .chip { background: var(--chip); color: var(--ink); border-radius: 14px; backdrop-filter: blur(6px); box-shadow: 0 6px 24px rgba(10, 20, 30, 0.25); }
+      header { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+      header > * { pointer-events: auto; }
+      .brand { display: flex; gap: 12px; align-items: center; padding: 10px 16px 10px 12px; }
+      .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--accent); display: grid; place-items: center; font-size: 22px; }
+      .brand h1 { margin: 0; font-size: 17px; letter-spacing: 0.02em; }
+      .brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; padding: 8px; }
+      button, select { font: inherit; font-size: 14px; color: var(--ink); background: #2c4458; border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+      button:hover, select:hover { background: #3d5a73; }
+      button:focus-visible, select:focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+      select { max-width: 260px; }
+      button.primary { background: var(--accent); font-weight: 600; }
+      button.primary:hover { background: var(--accent-hot); }
+      button.off { opacity: 0.6; }
+      #hold { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 8px 8px 8px 16px; white-space: nowrap; }
+      #hold[hidden] { display: none; }
+      #holdName { font-size: 14px; color: var(--muted); margin-right: 4px; }
+      #use { background: var(--accent); font-weight: 600; user-select: none; -webkit-user-select: none; touch-action: none; }
+      #use:active { background: var(--accent-hot); }
+      #toast { position: fixed; left: 50%; top: 84px; transform: translateX(-50%); background: var(--warn); color: #1b2533; font-weight: 600; padding: 10px 18px; border-radius: 12px; max-width: min(92vw, 640px); text-align: center; box-shadow: 0 6px 24px rgba(10, 20, 30, 0.25); }
+      #toast[hidden] { display: none; }
+      footer { position: fixed; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 10px; justify-content: space-between; align-items: flex-end; pointer-events: none; }
+      #hint { font-size: 12.5px; padding: 8px 12px; color: var(--muted); max-width: 720px; }
+      #tally { font-size: 12.5px; padding: 8px 12px; max-width: 46vw; }
+      #tally b { color: var(--warn); }
+      body.in-xr header, body.in-xr footer, body.in-xr #hold { display: none; }
+      @media (max-width: 720px) {
+        .brand p { display: none; }
+        .brand { padding: 8px 12px 8px 8px; }
+        .logo { width: 30px; height: 30px; font-size: 17px; }
+        header { flex-direction: column; align-items: stretch; }
+        .actions { justify-content: flex-start; }
+        select { flex: 1; max-width: none; }
+        #hint { display: none; }
+        #tally { max-width: none; flex: 1; }
+        #toast { top: 120px; }
+        #hold { bottom: 60px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <header>
+      <div class="brand chip">
+        <div class="logo" aria-hidden="true">⚗️</div>
+        <div>
+          <h1 data-t="app.title">Virtual Lab VR</h1>
+          <p data-t="app.tagline"></p>
+        </div>
+      </div>
+      <div class="actions chip">
+        <select id="topic" aria-label="Topic"></select>
+        <button id="reset" data-t="ui.reset"></button>
+        <button id="lang" data-t="ui.lang"></button>
+        <button id="vr" class="primary" data-t="ui.enterVR"></button>
+      </div>
+    </header>
+    <div id="hold" class="chip" hidden>
+      <span id="holdName"></span>
+      <button id="use"></button>
+      <button id="putback" data-t="ui.putBack"></button>
+    </div>
+    <div id="toast" role="status" hidden></div>
+    <footer>
+      <div id="hint" class="chip"></div>
+      <div id="tally" class="chip"><span id="used"></span> · <b data-t="ui.supply"></b></div>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

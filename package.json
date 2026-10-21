@@ -1,0 +1,23 @@
+{
+  "name": "virtual-lab-vr",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:vr": "vite --host --mode vr",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@iwer/devui": "^2.6.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "iwer": "^2.6.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
