@@ -6,6 +6,7 @@ import { audio } from './audio';
 import type { Lab } from './lab';
 import type { WorldPanel } from './panel';
 import { BENCH } from './room';
+import { HelpCard } from './help';
 import type { Holder, Tool } from './tools';
 
 // Picking things up and using them, with a mouse, a finger or VR controllers.
@@ -27,6 +28,10 @@ export interface InputHost {
 
 interface Hand {
   i: 0 | 1;
+  /** Buttons pressed last frame, to catch new presses (A/X, B/Y). */
+  was: boolean[];
+  /** Snap turn waits for the stick to come back to the middle. */
+  turnReady: boolean;
   ray: THREE.Group;
   grip: THREE.Group;
   line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
@@ -224,7 +229,10 @@ export class Input {
     const held = this.heldPointer;
     if (held) this.placeHeld(held, dt);
     else if (!this.host.renderer.xr.isPresenting) this.hoverPointer();
-    if (this.host.renderer.xr.isPresenting) this.updateHands();
+    if (this.host.renderer.xr.isPresenting) {
+      this.updateHands();
+      this.buttonsAndSticks(dt);
+    }
   }
 
   private hoverPointer() {
@@ -289,10 +297,12 @@ export class Input {
       );
       ray.add(line);
       rig.add(ray, grip, handSpace);
-      const hand: Hand = { i, ray, grip, line, source: null, held: null, heldBy: null };
+      const hand: Hand = { i, ray, grip, line, source: null, held: null, heldBy: null, was: [], turnReady: true };
       this.hands.push(hand);
       ray.addEventListener('connected', (e) => {
         hand.source = (e as unknown as { data: XRInputSource }).data;
+        // The controls card rides above the left controller, like a wristwatch.
+        if (hand.source.handedness === 'left' && !hand.source.hand) hand.grip.add(this.help.mesh);
       });
       ray.addEventListener('disconnected', () => {
         if (hand.held) this.release(hand.held);
@@ -304,6 +314,82 @@ export class Input {
       ray.addEventListener('squeezeend', () => this.unpress(hand, 'squeeze'));
     }
   }
+
+  /** Meta Quest controllers: sticks move, turn and raise you; A/X recentres; B/Y shows the help card. */
+  private buttonsAndSticks(dt: number) {
+    if (this.recenterIn > 0 && --this.recenterIn === 0) this.recenter();
+    for (const hand of this.hands) {
+      const pad = hand.source?.gamepad;
+      if (!pad || hand.source?.hand) continue;
+      const pressed = (i: number) => !!pad.buttons[i]?.pressed;
+      const fresh = (i: number) => pressed(i) && !hand.was[i];
+      const x = Math.abs(pad.axes[2] ?? 0) > 0.2 ? pad.axes[2] : 0;
+      const y = Math.abs(pad.axes[3] ?? 0) > 0.2 ? pad.axes[3] : 0;
+      if (hand.source!.handedness === 'left') {
+        // Left stick: walk, relative to where you're looking.
+        if (x || y) {
+          const { forward, right } = this.headAxes();
+          this.host.rig.position.addScaledVector(right, x * 0.6 * dt).addScaledVector(forward, -y * 0.6 * dt);
+        }
+      } else {
+        // Right stick: left/right turns 30° at a time, up/down raises or lowers you.
+        if (Math.abs(x) > 0.7 && hand.turnReady) {
+          this.turn(x > 0 ? -Math.PI / 6 : Math.PI / 6);
+          hand.turnReady = false;
+        } else if (Math.abs(x) < 0.3) hand.turnReady = true;
+        if (Math.abs(y) > 0.3 && Math.abs(x) < 0.5) {
+          const rig = this.host.rig;
+          rig.position.y = THREE.MathUtils.clamp(rig.position.y - y * 0.5 * dt, -0.4, 0.9);
+        }
+      }
+      if (fresh(4)) this.recenter(); // A or X
+      if (fresh(5)) this.help.toggle(); // B or Y
+      hand.was = pad.buttons.map((b) => b.pressed);
+    }
+  }
+
+  /** Head position and level facing direction in the world. In VR, three.js keeps the camera's
+   *  headset pose relative to the rig, so combining it with the rig's current transform is
+   *  always up to date, even right after the rig has moved. */
+  private head() {
+    const { camera, rig } = this.host;
+    rig.updateMatrix();
+    const pos = camera.position.clone().applyMatrix4(rig.matrix);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(rig.quaternion).setY(0);
+    if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1);
+    forward.normalize();
+    return { pos, forward };
+  }
+
+  private headAxes() {
+    const { forward } = this.head();
+    return { forward, right: new THREE.Vector3(-forward.z, 0, forward.x) };
+  }
+
+  /** Turn the whole play space around your head. */
+  private turn(angle: number) {
+    const rig = this.host.rig;
+    const { pos } = this.head();
+    rig.position.sub(pos).applyAxisAngle(UP, angle).add(pos);
+    rig.rotation.y += angle;
+  }
+
+  /** Put you at the bench, facing it, wherever you stood when VR started. */
+  recenter() {
+    const { forward } = this.head();
+    this.turn(Math.atan2(forward.x, -forward.z));
+    const { pos } = this.head();
+    this.host.rig.position.x -= pos.x;
+    this.host.rig.position.z -= pos.z - 0.05;
+  }
+
+  /** Recentre a moment after VR starts, once the headset reports where you are. */
+  recenterSoon() {
+    this.recenterIn = 30;
+  }
+
+  private recenterIn = 0;
+  readonly help = new HelpCard();
 
   private pulse(hand: Hand, strength: number, ms: number) {
     const act = hand.source?.gamepad?.hapticActuators?.[0] as { pulse?: (v: number, d: number) => void } | undefined;

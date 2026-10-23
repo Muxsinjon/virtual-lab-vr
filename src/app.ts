@@ -206,6 +206,7 @@ export class App {
 
   private relabel() {
     for (const l of this.lab.labels) l.redraw();
+    this.input.help.draw();
     this.fillOverlayText();
     this.refreshPanel();
   }
@@ -296,8 +297,20 @@ export class App {
   private onXR(on: boolean) {
     document.body.classList.toggle('in-xr', on);
     this.input.dropAll();
-    if (!on) {
+    // A headset draws everything twice: halve the shadow map there.
+    this.scene.traverse((o) => {
+      const light = o as THREE.DirectionalLight;
+      if (!light.isDirectionalLight || !light.castShadow) return;
+      light.shadow.mapSize.setScalar(on ? 1024 : 2048);
+      light.shadow.map?.dispose();
+      light.shadow.map = null;
+    });
+    if (on) {
+      this.input.help.mesh.visible = true;
+      this.input.recenterSoon();
+    } else {
       this.rig.position.set(0, 0, 0);
+      this.rig.rotation.set(0, 0, 0);
       this.seated = false;
     }
     this.refreshPanel();
