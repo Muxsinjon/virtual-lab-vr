@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildBench } from './bench';
 import {
   canvasTexture,
   ceilingTexture,
@@ -27,17 +28,22 @@ export const BENCH = {
 
 export const SINK = { x: 0.7, z: -0.6, r: 0.13 };
 
+/** The bench is modelled at this height; the table-height setting moves it (and all that's on it). */
+export const BASE_TOP = 0.9;
+export const TABLE_MIN = 0.6;
+export const TABLE_MAX = 1.15;
+
 /** Where the task board hangs on the back wall. */
-export const BOARD = { x: 0, y: 1.62, z: -1.552, w: 1.5, h: 0.94 };
+export const BOARD = { x: 0, y: 1.84, z: -1.552, w: 1.5, h: 0.94 };
 
 const ROOM = { left: -3.2, right: 3.2, back: -1.6, front: 3.6, height: 3 };
 const TILE_HEIGHT = 1.25;
 
-const std = (color: number | string, roughness = 0.7, metalness = 0, map?: THREE.Texture) =>
+export const std = (color: number | string, roughness = 0.7, metalness = 0, map?: THREE.Texture) =>
   new THREE.MeshStandardMaterial({ color: map ? 0xffffff : color, roughness, metalness, map });
 
 /** Merge static meshes that share a material, so the whole room costs a few dozen draw calls. */
-function mergeByMaterial(group: THREE.Group) {
+export function mergeByMaterial(group: THREE.Group) {
   group.updateMatrixWorld(true);
   const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
   const flags = new Map<THREE.Material, { cast: boolean; receive: boolean }>();
@@ -150,13 +156,13 @@ export function buildRoom(scene: THREE.Scene) {
   }
 
   // Back wall: chalkboard (left), task board bezel (centre), clock, wall cabinet (right).
-  add(box(1.5, 0.82, 0.03), darkWoodMat, -1.75, 1.62, ROOM.back + 0.015);
-  add(plane(1.4, 0.72), std(0, 0.9, 0, chalkboardTexture()), -1.75, 1.62, ROOM.back + 0.032);
-  add(box(1.45, 0.04, 0.08), darkWoodMat, -1.75, 1.2, ROOM.back + 0.05);
+  add(box(1.5, 0.82, 0.03), darkWoodMat, -1.75, 1.8, ROOM.back + 0.015);
+  add(plane(1.4, 0.72), std(0, 0.9, 0, chalkboardTexture()), -1.75, 1.8, ROOM.back + 0.032);
+  add(box(1.45, 0.04, 0.08), darkWoodMat, -1.75, 1.38, ROOM.back + 0.05);
   add(box(BOARD.w + 0.08, BOARD.h + 0.08, 0.04), blackMat, BOARD.x, BOARD.y, ROOM.back + 0.02);
-  const clock = add(new THREE.CylinderGeometry(0.16, 0.16, 0.04, 32), whiteMat, 0, 2.5, ROOM.back + 0.02, 0, Math.PI / 2);
+  const clock = add(new THREE.CylinderGeometry(0.16, 0.16, 0.04, 32), whiteMat, 0, 2.66, ROOM.back + 0.02, 0, Math.PI / 2);
   clock.rotation.set(Math.PI / 2, 0, 0);
-  add(new THREE.CircleGeometry(0.15, 32), std(0, 0.6, 0, clockTexture()), 0, 2.5, ROOM.back + 0.041);
+  add(new THREE.CircleGeometry(0.15, 32), std(0, 0.6, 0, clockTexture()), 0, 2.66, ROOM.back + 0.041);
 
   // Wall cabinet with glass doors, full of reagent bottles.
   const cabX = 1.65;
@@ -210,37 +216,6 @@ export function buildRoom(scene: THREE.Scene) {
   add(box(0.02, 0.16, 0.05), cross, ROOM.left + 0.105, 1.55, 2.4);
   add(box(0.02, 0.05, 0.16), cross, ROOM.left + 0.105, 1.55, 2.4);
 
-  // Your bench: black epoxy top over oak cabinets with drawers.
-  const depth = BENCH.front - BENCH.back + 0.04;
-  add(box(BENCH.width, 0.035, depth), epoxyMat, 0, BENCH.top - 0.0175, BENCH.z, 0, 0, true);
-  add(box(BENCH.width - 0.04, BENCH.top - 0.135, depth - 0.08), woodMat, 0, (BENCH.top - 0.135) / 2 + 0.1, BENCH.z - 0.02, 0, 0, true);
-  add(box(BENCH.width - 0.1, 0.1, depth - 0.14), blackMat, 0, 0.05, BENCH.z - 0.04);
-  const frontZ = BENCH.z - 0.02 + (depth - 0.08) / 2 + 0.001;
-  for (let i = 0; i < 4; i++) {
-    const x = -0.66 + i * 0.44;
-    add(plane(0.41, 0.15), darkWoodMat, x, BENCH.top - 0.12, frontZ);
-    add(plane(0.41, 0.5), darkWoodMat, x, 0.4, frontZ);
-    add(box(0.12, 0.014, 0.022), handleMat, x, BENCH.top - 0.12, frontZ + 0.012);
-    add(box(0.012, 0.12, 0.022), handleMat, x + 0.17, 0.52, frontZ + 0.012);
-  }
-  // Gas taps and sockets along the back edge.
-  const brass = std(0xb8913a, 0.3, 0.9);
-  for (const x of [-0.45, 0.25]) {
-    add(new THREE.CylinderGeometry(0.012, 0.014, 0.08, 12), brass, x, BENCH.top + 0.04, BENCH.back + 0.04);
-    add(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 8), brass, x, BENCH.top + 0.07, BENCH.back + 0.065, 0, Math.PI / 2);
-    add(box(0.03, 0.012, 0.012), std(0xd84315, 0.5), x, BENCH.top + 0.085, BENCH.back + 0.04);
-  }
-  add(box(0.12, 0.08, 0.04), whiteMat, -0.1, BENCH.top + 0.04, BENCH.back + 0.03);
-
-  // Sink: a dark steel basin in the bench, with a swan-neck tap.
-  add(new THREE.CylinderGeometry(SINK.r + 0.012, SINK.r + 0.012, 0.012, 36), steelMat, SINK.x, BENCH.top + 0.002, SINK.z);
-  add(new THREE.CircleGeometry(SINK.r, 36), darkSteelMat, SINK.x, BENCH.top + 0.0085, SINK.z, 0, -Math.PI / 2);
-  add(new THREE.CircleGeometry(0.02, 16), blackMat, SINK.x, BENCH.top + 0.009, SINK.z, 0, -Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.011, 0.014, 0.3, 14), steelMat, SINK.x, BENCH.top + 0.15, SINK.z - SINK.r - 0.04, 0, 0, true);
-  const neck = new THREE.TorusGeometry(0.07, 0.009, 10, 24, Math.PI);
-  add(neck, steelMat, SINK.x, BENCH.top + 0.3, SINK.z - SINK.r + 0.03, Math.PI / 2, 0, true);
-  add(box(0.06, 0.012, 0.012), steelMat, SINK.x - 0.035, BENCH.top + 0.22, SINK.z - SINK.r - 0.04);
-
   // Other student benches behind you, with stools.
   const stoolSeat = std(0x234a6b, 0.6);
   for (const z of [1.2, 2.4]) {
@@ -264,6 +239,8 @@ export function buildRoom(scene: THREE.Scene) {
   add(box(0.04, 0.72, 0.55), darkWoodMat, -1.68, 0.37, -0.75);
 
   scene.add(mergeByMaterial(g));
+  const bench = buildBench({ epoxyMat, woodMat, darkWoodMat, steelMat, darkSteelMat, blackMat, whiteMat, handleMat });
+  scene.add(bench);
 
   // Light: warm ceiling light from above the bench, cool daylight from the windows.
   scene.add(new THREE.HemisphereLight(0xfff4e2, 0x6e6458, 0.75));
@@ -286,4 +263,5 @@ export function buildRoom(scene: THREE.Scene) {
   daylight.position.set(4, 2.2, 0.2);
   daylight.target.position.set(0, 1, -0.5);
   scene.add(daylight, daylight.target);
+  return { bench };
 }

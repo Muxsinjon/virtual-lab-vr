@@ -9,7 +9,7 @@ export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingCon
   draw(canvas.getContext('2d')!, w, h);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 16;
   if (repeat) {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(...repeat);

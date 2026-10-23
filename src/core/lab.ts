@@ -4,7 +4,7 @@ import type { Key } from '../i18n';
 import { audio } from './audio';
 import { Flame, Flash } from './fx';
 import { Label, Vessel, type Draw } from './parts';
-import { BENCH } from './room';
+import { BASE_TOP, BENCH } from './room';
 import { Puddles, Splashes } from './spills';
 import { blobShadowTexture } from './textures';
 import type { Tool } from './tools';
@@ -96,7 +96,12 @@ class Bubbles {
 }
 
 export class Lab {
+  /** Added to the scene: holds the equipment and the effects. */
+  readonly root = new THREE.Group();
+  /** Equipment on the bench. It moves with the table-height setting. */
   readonly group = new THREE.Group();
+  /** Streams, drops, splashes, puddles and shadows, all in world coordinates. */
+  readonly world = new THREE.Group();
   readonly tools: Tool[] = [];
   readonly vessels: Vessel[] = [];
   readonly pressables: { mesh: THREE.Object3D; onPress: () => void }[] = [];
@@ -131,9 +136,11 @@ export class Lab {
       s.visible = false;
       s.renderOrder = 4;
       this.streams.push(s);
-      this.group.add(s);
+      this.world.add(s);
     }
-    this.group.add(this.flash.mesh, this.splashes.mesh, this.puddles.group);
+    this.root.add(this.group, this.world);
+    this.group.position.y = BENCH.top - BASE_TOP;
+    this.world.add(this.flash.mesh, this.splashes.mesh, this.puddles.group);
     // On the bench top a puddle stops at the edges; what runs over drips to the floor below.
     this.puddles.limit = (x, y, z) => {
       if (y < BENCH.top - 0.01) return { maxR: 0.32 };
@@ -158,7 +165,7 @@ export class Lab {
       );
       blob.rotation.x = -Math.PI / 2;
       blob.renderOrder = 0;
-      this.group.add(blob);
+      this.world.add(blob);
       this.blobs.set(tool, blob);
     }
     if (tool.vessel) this.trackVessel(tool.vessel);
@@ -248,11 +255,11 @@ export class Lab {
     g.position.set(p.mesh.position.x + (Math.random() - 0.5) * 0.01, ground + p.size * 0.75, p.mesh.position.z + (Math.random() - 0.5) * 0.01);
     g.rotation.set(Math.random() * 3, Math.random() * 3, 0);
     g.castShadow = true;
-    this.group.add(g);
+    this.world.add(g);
     this.strays.push(g);
     if (this.strays.length > 120) {
       const old = this.strays.shift()!;
-      this.group.remove(old);
+      this.world.remove(old);
       old.geometry.dispose();
       (old.material as THREE.Material).dispose();
     }
@@ -276,7 +283,7 @@ export class Lab {
         : new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: color === 0x9aa3ab ? 0.6 : 0 }),
     );
     mesh.position.copy(p);
-    this.group.add(mesh);
+    this.world.add(mesh);
     this.particles.push({ mesh, vel, part, kind, color, size });
   }
 
@@ -465,7 +472,7 @@ export class Lab {
         } else this.leaveStray(p, ground);
       }
       if (gone) {
-        this.group.remove(p.mesh);
+        this.world.remove(p.mesh);
         p.mesh.geometry.dispose();
         (p.mesh.material as THREE.Material).dispose();
         this.particles.splice(i--, 1);
@@ -485,10 +492,18 @@ export class Lab {
     this.flash.update(dt);
   }
 
+  /** The table moved by `dy`: take the equipment and anything spilled on the bench with it. */
+  shiftBench(dy: number, oldTop: number) {
+    this.group.position.y += dy;
+    for (const o of [...this.puddles.group.children, ...this.strays]) {
+      if (Math.abs(o.position.y - oldTop) < 0.03) o.position.y += dy;
+    }
+  }
+
   dispose() {
     audio.setPour(0);
     audio.setFizz(0);
-    this.group.traverse((o) => {
+    this.root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.geometry) mesh.geometry.dispose();
       const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
@@ -498,7 +513,7 @@ export class Lab {
         mat.dispose();
       }
     });
-    this.group.removeFromParent();
+    this.root.removeFromParent();
   }
 }
 

@@ -11,7 +11,8 @@ export interface PanelData {
   steps: { text: string; done: boolean }[];
   info: string;
   used: string[];
-  seated: boolean;
+  /** Table height in cm. */
+  table: number;
   inXR: boolean;
   topics: { id: string; title: string; ready: boolean; current: boolean }[];
   toast: string;
@@ -27,6 +28,7 @@ interface Hit {
 
 const W = 1600;
 const H = 1000;
+const SCALE = 1.5;
 
 export class WorldPanel {
   readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -39,8 +41,9 @@ export class WorldPanel {
   onButton: (id: string) => void = () => {};
 
   constructor() {
-    this.canvas.width = W;
-    this.canvas.height = H;
+    // Drawn at 1.5× so text stays crisp in the headset.
+    this.canvas.width = W * SCALE;
+    this.canvas.height = H * SCALE;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.anisotropy = 8;
@@ -104,6 +107,7 @@ export class WorldPanel {
     const d = this.data;
     if (!d) return;
     const c = this.canvas.getContext('2d')!;
+    c.setTransform(SCALE, 0, 0, SCALE, 0, 0);
     this.hits = [];
     c.fillStyle = '#152230';
     c.fillRect(0, 0, W, H);
@@ -193,10 +197,17 @@ export class WorldPanel {
       this.button(c, 'topics', `☰ ${t('ui.topics')}`, 60, by, 330, 95, true);
       this.button(c, 'reset', `↺ ${t('ui.reset')}`, 410, by, 360, 95);
       this.button(c, 'lang', t('ui.lang'), 790, by, 250, 95);
-      if (d.inXR) {
-        this.button(c, 'seated', d.seated ? t('ui.standing') : t('ui.seated'), 1060, by, 300, 95);
-        this.button(c, 'exit', '✕ VR', 1380, by, 160, 95);
-      }
+      // Table height: lower / current / raise.
+      this.button(c, 'tableDown', '▼', 1060, by, 90, 95);
+      c.fillStyle = '#ffffff';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = '600 26px "Segoe UI", system-ui, sans-serif';
+      c.fillText(t('ui.table'), 1235, by + 30);
+      c.font = '800 38px "Segoe UI", system-ui, sans-serif';
+      c.fillText(`${d.table} cm`, 1235, by + 68);
+      this.button(c, 'tableUp', '▲', 1320, by, 90, 95);
+      if (d.inXR) this.button(c, 'exit', '✕ VR', 1430, by, 110, 95);
     }
 
     // Messages appear as a banner across the top of the board.

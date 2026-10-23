@@ -4,12 +4,12 @@ import { t, type Key } from '../i18n';
 import { Ember, Flame } from './fx';
 import type { Lab } from './lab';
 import { curvedLabel, glassMaterial, reagentLabel, solidMaterial, Vessel, type Draw, type ReagentInfo } from './parts';
-import { BENCH, SINK } from './room';
+import { BASE_TOP, SINK } from './room';
 import { Tool } from './tools';
 
 // Ready-made equipment that the topics put on the bench, at real-life sizes.
 
-const Y = BENCH.top;
+const Y = BASE_TOP;
 const FONT = '"Segoe UI", system-ui, sans-serif';
 
 export const BAND = { acid: '#c62828', base: '#1f5fae', neutral: '#2e7d4f', oxidiser: '#e0a100', metal: '#5f6b75' };

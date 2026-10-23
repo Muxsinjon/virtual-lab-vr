@@ -5,7 +5,7 @@ import { Input } from './core/input';
 import { Lab, type UsageEntry } from './core/lab';
 import { WorldPanel } from './core/panel';
 import { NameTag } from './core/tag';
-import { BENCH, buildRoom } from './core/room';
+import { BENCH, buildRoom, TABLE_MAX, TABLE_MIN } from './core/room';
 import type { Tool } from './core/tools';
 import { getLang, onLangChange, setLang, t, type Key } from './i18n';
 import { TOPICS } from './topics';
@@ -33,7 +33,9 @@ export class App {
   private toastTimer = 0;
   private usageSig = '';
   private usageTimer = 0;
-  private seated = false;
+  private bench!: THREE.Object3D;
+  /** The board needs redrawing for a new table height (done a few times a second at most). */
+  private tableDirty = false;
   private xrSupported = false;
 
   constructor(container: HTMLElement) {
@@ -46,12 +48,20 @@ export class App {
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.xr.enabled = true;
     r.xr.setReferenceSpaceType('local-floor');
-    r.xr.setFoveation(1);
+    // Crisp rather than fast: no blurred edges, and a little more resolution than the default.
+    r.xr.setFoveation(0);
+    r.xr.setFramebufferScaleFactor(1.3);
     container.appendChild(r.domElement);
     this.renderer = r;
 
     this.scene.background = new THREE.Color(0x30363a);
-    buildRoom(this.scene);
+    try {
+      const saved = Number(localStorage.getItem('vlvr.table'));
+      if (saved >= TABLE_MIN && saved <= TABLE_MAX) BENCH.top = saved;
+    } catch {
+      /* storage blocked */
+    }
+    this.bench = buildRoom(this.scene).bench;
     // Reflections come from the room itself, so glass mirrors the real walls, windows and lights.
     const pmrem = new THREE.PMREMGenerator(r);
     this.scene.environment = pmrem.fromScene(this.scene, 0.015, 0.05, 20, { position: new THREE.Vector3(0, 1.3, -0.45) }).texture;
@@ -81,6 +91,8 @@ export class App {
       panel: this.panel,
       lab: () => this.lab,
       onHoldChange: (tool) => this.showHolding(tool),
+      onRecentered: (eye) => this.fitTable(eye),
+      onTableNudge: (dy) => this.setTable(BENCH.top + dy, true),
     });
 
     this.panel.onButton = (id) => this.onButton(id);
@@ -106,7 +118,7 @@ export class App {
     this.topic = def;
     this.done = new Set();
     this.lab = new Lab(this.usage, (key) => this.toast(key));
-    this.scene.add(this.lab.group);
+    this.scene.add(this.lab.root);
     this.topicUpdate = def.build(this.lab, {
       done: (step) => this.markDone(step),
       toast: (key) => this.toast(key),
@@ -164,7 +176,7 @@ export class App {
       steps: (this.topic.steps ?? []).map((s) => ({ text: t(s.key), done: this.done.has(s.id) })),
       info: this.topic.info ? t(this.topic.info) : '',
       used: this.usageLines(),
-      seated: this.seated,
+      table: Math.round(BENCH.top * 100),
       inXR: this.renderer.xr.isPresenting,
       topics: TOPICS.map((tp) => ({ id: tp.id, title: t(tp.title), ready: tp.ready, current: tp.id === this.topic.id })),
       toast: this.toastTimer > 0 ? this.toastText : '',
@@ -197,11 +209,47 @@ export class App {
     if (id.startsWith('topic:')) this.loadTopic(id.slice(6));
     else if (id === 'reset') this.loadTopic(this.topic.id);
     else if (id === 'lang') setLang(getLang() === 'en' ? 'uz' : 'en');
-    else if (id === 'seated') {
-      this.seated = !this.seated;
-      this.rig.position.y = this.seated ? 0.4 : 0;
-      this.refreshPanel();
-    } else if (id === 'exit') void this.renderer.xr.getSession()?.end();
+    else if (id === 'tableDown') this.setTable(BENCH.top - 0.03, true);
+    else if (id === 'tableUp') this.setTable(BENCH.top + 0.03, true);
+    else if (id === 'exit') void this.renderer.xr.getSession()?.end();
+  }
+
+  /**
+   * Raise or lower the bench with everything on it, without resetting the experiment.
+   * `save` keeps the choice for next time; the automatic fit in VR doesn't.
+   */
+  private setTable(height: number, save: boolean) {
+    const h = Math.round(THREE.MathUtils.clamp(height, TABLE_MIN, TABLE_MAX) * 1000) / 1000;
+    const dy = h - BENCH.top;
+    if (Math.abs(dy) < 1e-4) return;
+    const old = BENCH.top;
+    BENCH.top = h;
+    this.bench.position.y += dy;
+    this.lab.shiftBench(dy, old);
+    if (!this.renderer.xr.isPresenting) {
+      this.controls.target.y += dy;
+      this.camera.position.y += dy;
+    }
+    this.input.nudgeHeight(dy);
+    if (save) {
+      try {
+        localStorage.setItem('vlvr.table', String(h));
+      } catch {
+        /* storage blocked */
+      }
+    }
+    this.tableDirty = true;
+  }
+
+  /** On entering VR, fit the table to the person: about 57% of eye height (90 cm for 1.6 m eyes). */
+  private fitTable(eyeHeight: number) {
+    let saved = false;
+    try {
+      saved = localStorage.getItem('vlvr.table') !== null;
+    } catch {
+      /* storage blocked */
+    }
+    if (!saved) this.setTable(eyeHeight * 0.57, false);
   }
 
   private relabel() {
@@ -321,12 +369,11 @@ export class App {
       light.shadow.map = null;
     });
     if (on) {
-      this.input.help.mesh.visible = true;
+      this.input.help.show();
       this.input.recenterSoon();
     } else {
       this.rig.position.set(0, 0, 0);
       this.rig.rotation.set(0, 0, 0);
-      this.seated = false;
     }
     this.refreshPanel();
   }
@@ -370,8 +417,9 @@ export class App {
     if (this.usageTimer <= 0) {
       this.usageTimer = 0.25;
       const sig = this.usageLines().join('|');
-      if (sig !== this.usageSig) {
+      if (sig !== this.usageSig || this.tableDirty) {
         this.usageSig = sig;
+        this.tableDirty = false;
         this.refreshPanel();
       }
     }

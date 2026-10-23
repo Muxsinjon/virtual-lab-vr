@@ -24,6 +24,10 @@ export interface InputHost {
   panel: WorldPanel;
   lab: () => Lab;
   onHoldChange: (tool: Tool | null) => void;
+  /** VR start: you've been placed at the bench; `eye` is your eye height above the floor. */
+  onRecentered: (eye: number) => void;
+  /** Right stick up/down: raise or lower the table by `dy` metres. */
+  onTableNudge: (dy: number) => void;
 }
 
 interface Hand {
@@ -179,6 +183,7 @@ export class Input {
       this.host.onHoldChange(tool);
     } else if (hand) {
       hand.held = tool;
+      this.help.hide(); // you've got the hang of it
       if (near) hand.grip.attach(tool.root);
       else {
         hand.grip.add(tool.root);
@@ -272,6 +277,7 @@ export class Input {
       .multiply(tool.desktopQuat);
 
     const pos = p.sub(tool.tip.clone().applyQuaternion(q));
+    tool.root.parent?.worldToLocal(pos); // the bench may be raised or lowered
     const k = 1 - Math.exp(-dt * 20);
     tool.root.position.lerp(pos, k);
     tool.root.quaternion.slerp(q, k);
@@ -325,7 +331,11 @@ export class Input {
 
   /** Meta Quest controllers: sticks move, turn and raise you; A/X recentres; B/Y shows the help card. */
   private buttonsAndSticks(dt: number) {
-    if (this.recenterIn > 0 && --this.recenterIn === 0) this.recenter();
+    this.help.update(dt);
+    if (this.recenterIn > 0 && --this.recenterIn === 0) {
+      this.recenter();
+      this.host.onRecentered(this.head().pos.y);
+    }
     for (const hand of this.hands) {
       const pad = hand.source?.gamepad;
       if (!pad || hand.source?.hand) continue;
@@ -345,10 +355,7 @@ export class Input {
           this.turn(x > 0 ? -Math.PI / 6 : Math.PI / 6);
           hand.turnReady = false;
         } else if (Math.abs(x) < 0.3) hand.turnReady = true;
-        if (Math.abs(y) > 0.3 && Math.abs(x) < 0.5) {
-          const rig = this.host.rig;
-          rig.position.y = THREE.MathUtils.clamp(rig.position.y - y * 0.5 * dt, -0.4, 0.9);
-        }
+        if (Math.abs(y) > 0.3 && Math.abs(x) < 0.5) this.host.onTableNudge(-y * 0.15 * dt);
       }
       if (fresh(4)) this.recenter(); // A or X
       if (fresh(5)) this.help.toggle(); // B or Y

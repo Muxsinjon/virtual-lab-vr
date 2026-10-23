@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { t, type Key } from '../i18n';
 
-// A small card of controller instructions floating above the left controller in VR, for people
-// who have never used a headset. B or Y hides and shows it.
+// A small card of controller instructions on the left wrist in VR, for people who have never
+// used a headset. It sits back towards the wrist so it never covers what the hand reaches for,
+// hides itself once you've picked something up (or after 40 s), and B or Y shows it again.
 
 const W = 900;
 const H = 760;
@@ -30,18 +31,36 @@ export class HelpCard {
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.anisotropy = 8;
     this.mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.18, (0.18 * H) / W),
+      new THREE.PlaneGeometry(0.13, (0.13 * H) / W),
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false }),
     );
-    // Above the controller, tilted back towards your eyes.
-    this.mesh.position.set(0, 0.11, 0.0);
-    this.mesh.rotation.x = -0.55;
+    // Above the back of the controller, by the wrist, tilted towards your eyes.
+    this.mesh.position.set(-0.01, 0.075, 0.075);
+    this.mesh.rotation.x = -0.6;
     this.mesh.renderOrder = 997;
     this.draw();
   }
 
+  private shownFor = 0;
+
+  show() {
+    this.mesh.visible = true;
+    this.shownFor = 0;
+  }
+
+  hide() {
+    this.mesh.visible = false;
+  }
+
   toggle() {
-    this.mesh.visible = !this.mesh.visible;
+    if (this.mesh.visible) this.hide();
+    else this.show();
+  }
+
+  update(dt: number) {
+    if (!this.mesh.visible) return;
+    this.shownFor += dt;
+    if (this.shownFor > 40) this.hide();
   }
 
   draw() {

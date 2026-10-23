@@ -78,13 +78,17 @@ Windows asked about **Node.js** network access, allow it on private and public n
 | **Trigger** (index finger) | While holding a dropper: squeeze one drop. Otherwise: point at the wall board or the spirit lamp (a laser appears) and pull to press. |
 | **Left thumbstick** | Walk around (slowly). |
 | **Right thumbstick ◀ ▶** | Turn 30° left or right. |
-| **Right thumbstick ▲ ▼** | Make yourself taller or shorter (handy when sitting). |
+| **Right thumbstick ▲ ▼** | Raise or lower the **table** to suit your height (or for sitting). It remembers your choice. |
 | **A** or **X** | Go back to the bench, facing it. Use this if you get lost. |
-| **B** or **Y** | Hide or show the Controls card. |
+| **B** or **Y** | Show or hide the Controls card on your left wrist. It hides by itself once you pick something up. |
 | **Meta button** | Quest menu: exit the lab or the browser. |
 
 The **wall board** behind the bench shows your tasks and what you've used. Its buttons
-(Topics, Reset bench, O‘zbekcha, Seated mode, ✕ VR) are pressed by pointing and pulling the trigger.
+(Topics, Reset bench, O‘zbekcha, Table ▼ ▲, ✕ VR) are pressed by pointing and pulling the trigger.
+
+**Table height:** when you enter the lab, the table is set to suit your height automatically. If it
+still feels too high or low, push the right thumbstick up or down, or use **Table ▼ ▲** on the board.
+Your experiment stays as it is: the bench moves with everything on it.
 
 ## 6. A first experiment (Acids, bases and indicators)
 
