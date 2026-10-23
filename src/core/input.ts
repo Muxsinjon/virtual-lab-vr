@@ -32,6 +32,9 @@ interface Hand {
   was: boolean[];
   /** Snap turn waits for the stick to come back to the middle. */
   turnReady: boolean;
+  /** The free item within reach of this hand, which glows. */
+  near: Tool | null;
+  glow: THREE.Sprite;
   ray: THREE.Group;
   grip: THREE.Group;
   line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
@@ -145,11 +148,11 @@ export class Input {
     if (this.heldPointer) this.release(this.heldPointer);
   }
 
-  /** Whatever the current ray hits first: the panel, a button on the bench, or a tool. */
-  private pick() {
+  /** Whatever the current ray hits first: the panel, a button on the bench, or (on screens) a tool. */
+  private pick(tools = true) {
     const lab = this.host.lab();
     const targets: THREE.Object3D[] = [this.host.panel.mesh, ...lab.pressables.map((p) => p.mesh)];
-    for (const t of lab.tools) if (t.held === null) targets.push(t.root);
+    if (tools) for (const t of lab.tools) if (t.held === null) targets.push(t.root);
     const hits = this.raycaster.intersectObjects(targets, true);
     for (const h of hits) {
       if (!shown(h.object)) continue;
@@ -297,7 +300,12 @@ export class Input {
       );
       ray.add(line);
       rig.add(ray, grip, handSpace);
-      const hand: Hand = { i, ray, grip, line, source: null, held: null, heldBy: null, was: [], turnReady: true };
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x7fffd4, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.scale.setScalar(0.11);
+      glow.renderOrder = 996;
+      glow.visible = false;
+      rig.parent?.add(glow);
+      const hand: Hand = { i, ray, grip, line, source: null, held: null, heldBy: null, was: [], turnReady: true, near: null, glow };
       this.hands.push(hand);
       ray.addEventListener('connected', (e) => {
         hand.source = (e as unknown as { data: XRInputSource }).data;
@@ -427,7 +435,7 @@ export class Input {
       return;
     }
     this.aim(hand);
-    const hit = this.pick();
+    const hit = this.pick(false);
     if (button === 'select' && hit?.panelUv) {
       if (this.host.panel.click(hit.panelUv)) {
         audio.click();
@@ -440,11 +448,11 @@ export class Input {
       hit.press();
       return;
     }
+    // In VR you pick things up by reaching for them, like in a real lab: no grabbing from afar.
     const near = this.nearTool(hand);
-    const tool = near ?? hit?.tool;
-    if (!tool) return;
+    if (!near) return;
     hand.heldBy = button;
-    this.grab(tool, hand.i, hand, !!near);
+    this.grab(near, hand.i, hand, true);
   }
 
   private unpress(hand: Hand, button: 'select' | 'squeeze') {
@@ -464,18 +472,41 @@ export class Input {
     for (const hand of this.hands) {
       if (!hand.source) {
         hand.line.visible = false;
+        hand.glow.visible = false;
         continue;
       }
-      hand.line.visible = !hand.held;
-      if (hand.held) continue;
+      const near = hand.held ? null : this.nearTool(hand);
+      if (near && near !== hand.near) this.pulse(hand, 0.15, 15);
+      hand.near = near;
+      hand.glow.visible = !!near;
+      if (near) near.gripWorld(hand.glow.position);
+      if (hand.held) {
+        hand.line.visible = false;
+        continue;
+      }
+      // The laser only appears when you point at the board or the lamp, to press them.
       this.aim(hand);
-      const hit = this.pick();
-      const near = this.nearTool(hand);
-      hand.line.scale.z = hit ? hit.distance : 1.2;
-      hand.line.material.color.setHex(near || hit?.tool ? 0x7fffd4 : hit ? 0xffe08a : 0xffffff);
+      const hit = near ? null : this.pick(false);
+      hand.line.visible = !!hit;
+      if (hit) hand.line.scale.z = hit.distance;
       if (hit?.panelUv) panelUv = hit.panelUv;
-      this.hovered ??= near ?? hit?.tool ?? null;
+      this.hovered ??= near;
     }
     this.host.panel.pointAt(panelUv);
   }
+}
+
+/** Soft round glow shown around an item your hand can reach. */
+function glowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const c = canvas.getContext('2d')!;
+  const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,0.0)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.15)');
+  g.addColorStop(0.8, 'rgba(255,255,255,0.7)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(canvas);
 }

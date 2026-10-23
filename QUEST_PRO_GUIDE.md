@@ -58,8 +58,10 @@ It prints a line like `➜  Network: https://192.168.1.23:5174/`. Write that add
    exactly, including `https://` and the `:5174` port, and press **Go**.
 3. You'll see **"Your connection is not private"**. That's expected: the certificate is homemade.
    Click **Advanced**, then **Proceed to … (unsafe)**.
-4. The lab appears on a flat page. Press **Enter VR**. If the browser asks to allow VR, press **Allow**.
-5. You're now standing at the lab bench. A **Controls** card floats above your left controller.
+4. A big **Enter the lab** button fills the page. Point at it and pull the **trigger**. If the browser
+   asks to allow VR, press **Allow**.
+5. The browser disappears and you're standing in the lab, at your bench. A **Controls** card floats
+   above your left controller. Look around: you can walk anywhere in the room.
 
 **If the page won't load:** check both devices are on the same Wi-Fi, or use a phone hotspot. If
 Windows asked about **Node.js** network access, allow it on private and public networks.
@@ -71,9 +73,9 @@ Windows asked about **Node.js** network access, allow it on private and public n
 
 | Button | What it does |
 |---|---|
-| **Grip** (middle finger), held | Grab what's at your hand, or what the ray points at. Let go to put it back in its place. |
+| **Grip** (middle finger), held | Reach your hand to an item: it glows and the controller buzzes. Hold **Grip** to pick it up; let go to put it back in its place. |
 | **Tilt your hand** | Pour from a bottle or beaker, as in real life. Pour slowly near the container's opening. |
-| **Trigger** (index finger) | While holding a dropper: squeeze one drop. Otherwise: press buttons on the wall board, or tap the spirit lamp to light or put it out. |
+| **Trigger** (index finger) | While holding a dropper: squeeze one drop. Otherwise: point at the wall board or the spirit lamp (a laser appears) and pull to press. |
 | **Left thumbstick** | Walk around (slowly). |
 | **Right thumbstick ◀ ▶** | Turn 30° left or right. |
 | **Right thumbstick ▲ ▼** | Make yourself taller or shorter (handy when sitting). |

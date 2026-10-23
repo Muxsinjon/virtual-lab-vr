@@ -227,6 +227,11 @@ export class App {
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) use.addEventListener(ev, () => this.input.useEnd());
     $('vr').addEventListener('click', () => this.enterVR());
+    $('launch').addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'launchLang') return;
+      void this.enterVR();
+    });
+    $('launchLang').addEventListener('click', () => setLang(getLang() === 'en' ? 'uz' : 'en'));
     // Raise / lower while the button is held down.
     for (const [id, dy] of [['up', 0.012], ['down', -0.012]] as const) {
       const btn = $(id);
@@ -244,6 +249,9 @@ export class App {
     if (xr) {
       void xr.isSessionSupported('immersive-vr').then((ok) => {
         this.xrSupported = ok;
+        // In a headset's browser, skip the website: show one big button into the lab.
+        const headset = /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent) || new URLSearchParams(location.search).has('vr');
+        $('launch').hidden = !(ok && headset);
         this.fillOverlayText();
       });
     }
@@ -288,14 +296,21 @@ export class App {
       this.toast('ui.noVR', 5);
       return;
     }
-    const session = await navigator.xr.requestSession('immersive-vr', {
-      optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
-    });
-    await this.renderer.xr.setSession(session);
+    try {
+      const session = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
+      await this.renderer.xr.setSession(session);
+    } catch {
+      this.toast('ui.noVR', 5);
+    }
   }
 
   private onXR(on: boolean) {
     document.body.classList.toggle('in-xr', on);
+    // Coming back out of VR on a headset returns to the big "Enter the lab" button.
+    if (!on && /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent)) $('launch').hidden = false;
+    if (on) $('launch').hidden = true;
     this.input.dropAll();
     // A headset draws everything twice: halve the shadow map there.
     this.scene.traverse((o) => {

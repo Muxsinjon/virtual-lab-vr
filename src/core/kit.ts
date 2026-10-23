@@ -157,7 +157,7 @@ export function dropper(lab: Lab, key: Key, perDrop: Mixture, color: number, x: 
   tool.use = 'drip';
   tool.drop = { part: perDrop, color };
   tool.gripOffset = 0.1;
-  tool.grabRadius = 0.06;
+  tool.grabRadius = 0.08;
   tool.holdHeight = 0.13;
   tool.tip.set(0, 0, 0);
   tool.setHome(x, Y + 0.0, z);

@@ -19,7 +19,7 @@ export class Tool {
   readonly tip = new THREE.Vector3();
   /** Height of the hand above the origin. */
   gripOffset = 0.05;
-  grabRadius = 0.09;
+  grabRadius = 0.11;
   use: UseKind = 'none';
   /** Height of the tip above the bench when first picked up with the mouse. */
   holdHeight = 0.2;
