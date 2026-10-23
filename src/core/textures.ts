@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { t } from '../i18n';
 
 // Procedural textures: everything is drawn on canvases at startup, so the app ships no image files.
 
@@ -15,6 +16,37 @@ export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingCon
     tex.repeat.set(...repeat);
   }
   return tex;
+}
+
+/** Textures with words on them, drawn again in the new language when it changes. */
+const localized: { tex: THREE.CanvasTexture; draw: (c: CanvasRenderingContext2D, w: number, h: number) => void }[] = [];
+
+export function localizedTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void) {
+  const tex = canvasTexture(w, h, draw);
+  localized.push({ tex, draw });
+  return tex;
+}
+
+export function redrawLocalized() {
+  for (const { tex, draw } of localized) {
+    const canvas = tex.image as HTMLCanvasElement;
+    const c = canvas.getContext('2d')!;
+    c.save();
+    c.clearRect(0, 0, canvas.width, canvas.height);
+    draw(c, canvas.width, canvas.height);
+    c.restore();
+    tex.needsUpdate = true;
+  }
+}
+
+/** Shrink a font until the text fits. */
+function fit(c: CanvasRenderingContext2D, text: string, maxW: number, size: number, weight: string) {
+  let s = size;
+  c.font = `${weight} ${s}px "Segoe UI", sans-serif`;
+  while (c.measureText(text).width > maxW && s > 12) {
+    s -= 2;
+    c.font = `${weight} ${s}px "Segoe UI", sans-serif`;
+  }
 }
 
 /** Deterministic noise so textures look the same on every load. */
@@ -61,7 +93,8 @@ export const epoxyTexture = () =>
   canvasTexture(512, 512, (c, w, h) => {
     c.fillStyle = '#323a3d';
     c.fillRect(0, 0, w, h);
-    speckle(c, w, h, 2200, ['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.22)', 'rgba(140,160,170,0.08)'], [0.6, 2], 3);
+    // Soft, low-contrast flecks: fine high-contrast specks shimmer in a headset.
+    speckle(c, w, h, 1400, ['rgba(255,255,255,0.035)', 'rgba(0,0,0,0.1)', 'rgba(140,160,170,0.05)'], [1.2, 3], 3);
   }, [3, 1.2]);
 
 /** Glazed wall tiles with grout lines (lower half of the walls, as in most school labs). */
@@ -104,7 +137,7 @@ export const floorTexture = () =>
   canvasTexture(512, 512, (c, w, h) => {
     c.fillStyle = '#8f877b';
     c.fillRect(0, 0, w, h);
-    speckle(c, w, h, 2600, ['#6f675c', '#a59d90', '#b7afa1', '#5d564d', '#9a8f7e'], [0.8, 2.6], 9);
+    speckle(c, w, h, 1800, ['#857d71', '#988f83', '#a39a8c', '#7d756a', '#948a7b'], [1.2, 3], 9);
     c.strokeStyle = 'rgba(40,35,30,0.45)';
     c.lineWidth = 3;
     c.strokeRect(0, 0, w, h);
@@ -125,7 +158,8 @@ export const ceilingTexture = () =>
 
 /** A green school chalkboard with today's chemistry on it. */
 export const chalkboardTexture = () =>
-  canvasTexture(1600, 800, (c, w, h) => {
+  localizedTexture(1600, 800, (c, w, h) => {
+    c.textAlign = 'left';
     const g = c.createLinearGradient(0, 0, w, h);
     g.addColorStop(0, '#2f4a3c');
     g.addColorStop(1, '#273f33');
@@ -135,7 +169,7 @@ export const chalkboardTexture = () =>
     speckle(c, w, h, 60, ['rgba(255,255,255,0.035)'], [40, 140], 21);
     c.fillStyle = 'rgba(245,245,235,0.92)';
     c.font = 'italic 600 64px "Segoe Print", "Comic Sans MS", cursive';
-    c.fillText('Kimyo · Chemistry', 90, 120);
+    c.fillText(t('room.chem'), 90, 120);
     c.font = '500 58px "Segoe Print", "Comic Sans MS", cursive';
     c.fillText('Zn + 2HCl → ZnCl₂ + H₂↑', 110, 260);
     c.fillText('2H₂O₂ → 2H₂O + O₂↑   (MnO₂)', 110, 370);
@@ -143,7 +177,7 @@ export const chalkboardTexture = () =>
     c.fillText('pH = −lg[H⁺]', 110, 590);
     c.font = '500 46px "Segoe Print", "Comic Sans MS", cursive';
     c.fillStyle = 'rgba(250,225,120,0.9)';
-    c.fillText('pH < 7 kislota   pH = 7 neytral   pH > 7 ishqor', 110, 700);
+    c.fillText(t('room.phLine'), 110, 700);
     c.strokeStyle = 'rgba(245,245,235,0.6)';
     c.lineWidth = 4;
     c.beginPath();
@@ -164,15 +198,15 @@ const ELEMENTS: [string, number, number, number][] = [
 const CATEGORY = ['#7cc48a', '#ef8a80', '#f5b971', '#efd768', '#9cc7b5', '#8fb3ea', '#c49be6', '#b8bec8'];
 
 export const periodicTexture = () =>
-  canvasTexture(1400, 600, (c, w, h) => {
+  localizedTexture(1400, 600, (c, w, h) => {
     c.fillStyle = '#fbfaf4';
     c.fillRect(0, 0, w, h);
     c.fillStyle = '#1f3a5a';
     c.fillRect(0, 0, w, 70);
     c.fillStyle = '#ffffff';
-    c.font = '700 40px "Segoe UI", sans-serif';
     c.textAlign = 'center';
-    c.fillText('D. I. Mendeleyev · Kimyoviy elementlar davriy jadvali', w / 2, 50);
+    fit(c, t('room.periodic'), w - 60, 40, '700');
+    c.fillText(t('room.periodic'), w / 2, 50);
     const cell = 72;
     const x0 = (w - cell * 18) / 2;
     let n = 0;
@@ -194,18 +228,18 @@ export const periodicTexture = () =>
 
 /** Lab safety poster: goggles, gloves, no food. */
 export const safetyPosterTexture = () =>
-  canvasTexture(600, 840, (c, w, h) => {
+  localizedTexture(600, 840, (c, w, h) => {
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, w, h);
     c.fillStyle = '#1565c0';
     c.fillRect(0, 0, w, 130);
     c.fillStyle = '#ffffff';
     c.textAlign = 'center';
-    c.font = '800 54px "Segoe UI", sans-serif';
-    c.fillText('XAVFSIZLIK', w / 2, 60);
-    c.font = '600 32px "Segoe UI", sans-serif';
-    c.fillText('Lab safety rules', w / 2, 108);
-    const rules = ['Ko‘zoynak taqing', 'Qo‘lqop kiying', 'Ovqat yemang', 'Hidlamang'];
+    fit(c, t('room.safety'), w - 40, 54, '800');
+    c.fillText(t('room.safety'), w / 2, 60);
+    fit(c, t('room.rules'), w - 40, 32, '600');
+    c.fillText(t('room.rules'), w / 2, 108);
+    const rules = [t('room.r1'), t('room.r2'), t('room.r3'), t('room.r4')];
     const icons = ['👓', '🧤', '🚫', '👃'];
     rules.forEach((r, i) => {
       const y = 200 + i * 160;
@@ -217,7 +251,7 @@ export const safetyPosterTexture = () =>
       c.fillText(icons[i], 110, y + 42);
       c.fillStyle = '#1b2533';
       c.textAlign = 'left';
-      c.font = '700 40px "Segoe UI", sans-serif';
+      fit(c, r, w - 220, 40, '700');
       c.fillText(r, 200, y + 34);
       c.textAlign = 'center';
     });

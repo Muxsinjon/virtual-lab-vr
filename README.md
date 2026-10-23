@@ -56,12 +56,14 @@ between the glass and the bench. On a phone, tap to pick up, drag to move, and u
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm run dev:vr     # HTTPS on your local network, for testing on a headset
+npm.cmd run serve:vr  # optimised build over HTTPS on your local network, for the headset
 npm run build      # production build in dist/
 ```
 
-The headset browser only allows WebXR on HTTPS pages. `npm run dev:vr` prints a network address
-(`https://192.168.x.x:5173`); open it on the Quest and accept the self-signed certificate warning.
+The headset browser only allows WebXR on HTTPS pages. `npm.cmd run serve:vr` builds the optimised
+version and prints a network address (`https://192.168.x.x:4173`); open it on the Quest and accept the
+self-signed certificate warning. (`npm.cmd run dev:vr` also works but is slower: it serves the
+unoptimised development version.)
 
 Without a headset, `http://localhost:5173/?emulate` adds a Meta Quest 3 emulator (dev builds only).
 

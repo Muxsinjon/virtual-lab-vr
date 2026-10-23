@@ -5,6 +5,7 @@ import { Input } from './core/input';
 import { Lab, type UsageEntry } from './core/lab';
 import { WorldPanel } from './core/panel';
 import { NameTag } from './core/tag';
+import { redrawLocalized } from './core/textures';
 import { BENCH, buildRoom, TABLE_MAX, TABLE_MIN } from './core/room';
 import type { Tool } from './core/tools';
 import { getLang, onLangChange, setLang, t, type Key } from './i18n';
@@ -54,9 +55,10 @@ export class App {
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.xr.enabled = true;
     r.xr.setReferenceSpaceType('local-floor');
-    // Crisp rather than fast: no blurred edges, and a little more resolution than the default.
-    r.xr.setFoveation(0);
-    r.xr.setFramebufferScaleFactor(1.3);
+    // Smooth first: a headset that misses frames looks shaky and makes eyes tired. A little more
+    // resolution than default keeps text crisp; light foveation saves work at the edges only.
+    r.xr.setFoveation(0.5);
+    r.xr.setFramebufferScaleFactor(1.1);
     container.appendChild(r.domElement);
     this.renderer = r;
 
@@ -301,6 +303,7 @@ export class App {
     for (const l of this.lab.labels) l.redraw();
     this.input.help.draw();
     this.input.warning.redraw();
+    redrawLocalized(); // poster, chalkboard, signs
     this.fillOverlayText();
     this.refreshPanel();
   }
@@ -406,14 +409,20 @@ export class App {
     if (!on && /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent)) $('launch').hidden = false;
     if (on) $('launch').hidden = true;
     this.input.dropAll();
-    // A headset draws everything twice: halve the shadow map there.
+    // A headset draws everything twice at 72+ frames a second. Real-time shadows are the most
+    // expensive thing here (and they shimmer in VR), so the headset uses the soft contact shadows only.
     this.scene.traverse((o) => {
       const light = o as THREE.DirectionalLight;
-      if (!light.isDirectionalLight || !light.castShadow) return;
-      light.shadow.mapSize.setScalar(on ? 1024 : 2048);
-      light.shadow.map?.dispose();
-      light.shadow.map = null;
+      if (light.isDirectionalLight && light.shadow) {
+        if (light.userData.shadows === undefined) light.userData.shadows = light.castShadow;
+        light.castShadow = on ? false : light.userData.shadows;
+      }
     });
+    if (on) {
+      // Ask for a steady 72 Hz: lower but never stuttering.
+      const session = this.renderer.xr.getSession() as (XRSession & { supportedFrameRates?: Float32Array; updateTargetFrameRate?: (r: number) => Promise<void> }) | null;
+      if (session?.supportedFrameRates?.includes(72)) void session.updateTargetFrameRate?.(72).catch(() => {});
+    }
     if (on) {
       this.input.help.show();
       this.input.recenterSoon();
@@ -467,7 +476,7 @@ export class App {
     // The usage tally changes while pouring; redraw it a few times a second at most.
     this.usageTimer -= dt;
     if (this.usageTimer <= 0) {
-      this.usageTimer = 0.25;
+      this.usageTimer = 1;
       const sig = this.usageLines().join('|');
       if (sig !== this.usageSig || this.tableDirty) {
         this.usageSig = sig;

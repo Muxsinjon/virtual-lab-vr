@@ -333,7 +333,6 @@ export class Input {
   /** Meta Quest controllers: sticks move, turn and raise you; A/X recentres; B/Y shows the help card. */
   private buttonsAndSticks(dt: number) {
     this.help.update(dt);
-    this.confine(dt);
     if (this.recenterIn > 0 && --this.recenterIn === 0) {
       this.recenter();
       this.host.onRecentered(this.head().pos.y);
@@ -363,6 +362,8 @@ export class Input {
       if (fresh(5)) this.help.toggle(); // B or Y
       hand.was = pad.buttons.map((b) => b.pressed);
     }
+    // Last, after any stick movement this frame, so nothing is ever drawn inside a wall.
+    this.confine(dt);
   }
 
   /** Head position and level facing direction in the world. In VR, three.js keeps the camera's
@@ -376,7 +377,7 @@ export class Input {
   private confine(dt: number) {
     const rig = this.host.rig;
     const { pos } = this.head();
-    const pad = 0.22;
+    const pad = 0.3;
     let pushX = 0;
     let pushZ = 0;
     let what: 'wall' | 'furniture' | null = null;

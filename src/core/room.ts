@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { t } from '../i18n';
 import { buildBench } from './bench';
 import {
   canvasTexture,
   ceilingTexture,
   chalkboardTexture,
   clockTexture,
+  localizedTexture,
   epoxyTexture,
   floorTexture,
   paintTexture,
@@ -157,7 +159,7 @@ export function buildRoom(scene: THREE.Scene) {
   });
   const skyMat = new THREE.MeshBasicMaterial({ map: sky });
   const frameMat = std(0xf2f0ea, 0.4);
-  for (const z of [-0.6, 1.4]) {
+  for (const z of [0.25, 2.1]) {
     add(plane(1.5, 1.2), skyMat, ROOM.right - 0.005, 1.8, z, -Math.PI / 2);
     for (const [w, h, y, dz] of [[1.6, 0.06, 2.4, 0], [1.6, 0.06, 1.2, 0], [0.06, 1.25, 1.8, -0.77], [0.06, 1.25, 1.8, 0.77], [0.04, 1.2, 1.8, 0], [1.5, 0.04, 1.8, 0]] as const)
       add(box(0.06, h, w), frameMat, ROOM.right - 0.03, y, z + dz);
@@ -176,21 +178,25 @@ export function buildRoom(scene: THREE.Scene) {
   add(new THREE.CircleGeometry(0.15, 32), std(0, 0.6, 0, clockTexture()), 0, 2.66, ROOM.back + 0.041);
 
   // Wall cabinet with glass doors, full of reagent bottles.
-  const cabX = 1.65;
-  add(box(1.3, 0.9, 0.32), woodMat, cabX, 1.85, ROOM.back + 0.16, 0, 0, true);
-  add(box(1.22, 0.82, 0.3), std(0xb59a78, 0.8), cabX, 1.85, ROOM.back + 0.17);
+  // Between the smart board and the fume hood, clear of both.
+  const cabX = 1.33;
+  // Carcass: two sides, top and bottom (the front is the glass doors).
+  for (const sx of [-0.46, 0.46]) add(box(0.04, 0.9, 0.32), woodMat, cabX + sx, 1.85, ROOM.back + 0.16, 0, 0, true);
+  for (const sy of [-0.43, 0.43]) add(box(0.96, 0.04, 0.32), woodMat, cabX, 1.85 + sy, ROOM.back + 0.16, 0, 0, true);
+  // Open front behind the glass doors: a light back panel so the bottles show through.
+  add(box(0.88, 0.82, 0.01), std(0xc9b08c, 0.8), cabX, 1.85, ROOM.back + 0.33 - 0.3);
   const bottleColors = [0x6b3a12, 0x7a4a1c, 0xe8eef0, 0x2f5f8f, 0x6b3a12, 0xe8eef0, 0x3e6f4f, 0x8a2f2f];
   for (let s = 0; s < 2; s++) {
-    add(box(1.2, 0.015, 0.28), woodMat, cabX, 1.47 + s * 0.4, ROOM.back + 0.17);
-    for (let i = 0; i < 9; i++) {
+    add(box(0.88, 0.015, 0.28), woodMat, cabX, 1.47 + s * 0.4, ROOM.back + 0.17);
+    for (let i = 0; i < 6; i++) {
       const h = 0.15 + ((i * 7 + s * 3) % 4) * 0.025;
       const col = bottleColors[(i + s * 5) % bottleColors.length];
-      add(new THREE.CylinderGeometry(0.038, 0.038, h, 14), std(col, 0.2), cabX - 0.52 + i * 0.13, 1.48 + s * 0.4 + h / 2, ROOM.back + 0.17);
-      add(new THREE.CylinderGeometry(0.015, 0.018, 0.03, 10), blackMat, cabX - 0.52 + i * 0.13, 1.48 + s * 0.4 + h + 0.015, ROOM.back + 0.17);
+      add(new THREE.CylinderGeometry(0.038, 0.038, h, 14), std(col, 0.2), cabX - 0.35 + i * 0.14, 1.48 + s * 0.4 + h / 2, ROOM.back + 0.17);
+      add(new THREE.CylinderGeometry(0.015, 0.018, 0.03, 10), blackMat, cabX - 0.35 + i * 0.14, 1.48 + s * 0.4 + h + 0.015, ROOM.back + 0.17);
     }
   }
   const glassDoor = new THREE.MeshStandardMaterial({ color: 0xdfeff5, roughness: 0.05, transparent: true, opacity: 0.18, depthWrite: false });
-  add(plane(1.26, 0.86), glassDoor, cabX, 1.85, ROOM.back + 0.325);
+  add(plane(0.92, 0.86), glassDoor, cabX, 1.85, ROOM.back + 0.325);
   add(box(0.02, 0.86, 0.02), woodMat, cabX, 1.85, ROOM.back + 0.33);
 
   // Fume hood in the back-right corner.
@@ -205,13 +211,19 @@ export function buildRoom(scene: THREE.Scene) {
   add(box(1.1, 0.6, 0.8), whiteMat, hoodX, 2.7, hoodZ);
   add(plane(1.0, 0.8), glassDoor, hoodX, 1.5, hoodZ + 0.4);
   add(box(1.0, 0.03, 0.03), handleMat, hoodX, 1.1, hoodZ + 0.41);
-  const hoodSign = canvasTexture(512, 128, (c, w, h) => {
+  const hoodSign = localizedTexture(512, 128, (c, w, h) => {
     c.fillStyle = '#f2c230';
     c.fillRect(0, 0, w, h);
     c.fillStyle = '#1b1b1b';
     c.font = '800 54px "Segoe UI", sans-serif';
     c.textAlign = 'center';
-    c.fillText('MO‘RILI SHKAF', w / 2, 80);
+    let size = 54;
+    c.font = `800 ${size}px "Segoe UI", sans-serif`;
+    while (c.measureText(t('room.hood')).width > w - 30 && size > 20) {
+      size -= 2;
+      c.font = `800 ${size}px "Segoe UI", sans-serif`;
+    }
+    c.fillText(t('room.hood'), w / 2, 82);
   });
   add(plane(0.5, 0.125), std(0, 0.6, 0, hoodSign), hoodX, 2.25, hoodZ + 0.4);
 

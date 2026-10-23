@@ -7,7 +7,8 @@
     "dev": "vite",
     "dev:vr": "vite --host --mode vr",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve:vr": "vite build && vite preview --host --mode vr"
   },
   "dependencies": {
     "three": "^0.180.0"

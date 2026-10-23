@@ -46,16 +46,16 @@ to click, like a mouse.
 **On the computer** (in the project folder):
 
 ```bash
-npm run dev:vr
+npm.cmd run serve:vr
 ```
 
-It prints a line like `➜  Network: https://192.168.1.23:5174/`. Write that address down.
+It prints a line like `➜  Network: https://192.168.1.23:4173/`. Write that address down.
 
 **In the headset:**
 
 1. Press the **Meta button** to open the menu, then open the **Browser** app (globe icon).
 2. Point at the address bar at the top and press the **trigger**. A keyboard appears: type the address
-   exactly, including `https://` and the `:5174` port, and press **Go**.
+   exactly, including `https://` and the `:4173` port, and press **Go**.
 3. You'll see **"Your connection is not private"**. That's expected: the certificate is homemade.
    Click **Advanced**, then **Proceed to … (unsafe)**.
 4. A big **Enter the lab** button fills the page. Point at it and pull the **trigger**. If the browser
