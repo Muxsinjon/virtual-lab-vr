@@ -48,6 +48,9 @@ interface Hand {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** Where you stand: at your bench, or in the middle of the classroom (z, metres). */
+const BENCH_SPOT = 0.05;
+const CLASS_SPOT = 1.0;
 
 /** Raycasting ignores `visible`, so hidden meshes (empty liquid, unlit flame) must be skipped. */
 function shown(o: THREE.Object3D | null) {
@@ -334,7 +337,8 @@ export class Input {
   private buttonsAndSticks(dt: number) {
     this.help.update(dt);
     if (this.recenterIn > 0 && --this.recenterIn === 0) {
-      this.recenter();
+      // Start in the middle aisle of the classroom, facing your bench, free to walk around.
+      this.recenter(CLASS_SPOT);
       this.host.onRecentered(this.head().pos.y);
     }
     for (const hand of this.hands) {
@@ -436,13 +440,16 @@ export class Input {
     rig.rotation.y += angle;
   }
 
-  /** Put you at the bench, facing it, wherever you stood when VR started. */
-  recenter() {
+  /**
+   * Put you facing the bench, wherever you stood when VR started: right at it by default, or
+   * further back (`z`, metres from the front of the room's centre line) to see the whole class.
+   */
+  recenter(z = BENCH_SPOT) {
     const { forward } = this.head();
     this.turn(Math.atan2(forward.x, -forward.z));
     const { pos } = this.head();
     this.host.rig.position.x -= pos.x;
-    this.host.rig.position.z -= pos.z - 0.05;
+    this.host.rig.position.z -= pos.z - z;
   }
 
   /** Recentre a moment after VR starts, once the headset reports where you are. */

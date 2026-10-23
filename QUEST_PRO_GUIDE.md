@@ -64,8 +64,9 @@ It prints a line like `➜  Network: https://192.168.1.23:4173/`. Write that add
    Click **Advanced**, then **Proceed to … (unsafe)**.
 4. A big **Enter the lab** button fills the page. Point at it and pull the **trigger**. If the browser
    asks to allow VR, press **Allow**.
-5. The browser disappears and you're standing in the lab, at your bench. A **Controls** card floats
-   above your left controller. Look around: you can walk anywhere in the room.
+5. The browser disappears and you're standing in the middle of the classroom, facing your bench.
+   Walk around and look at the room, then walk up to the bench (or press **A** / **X** to jump there).
+   A **Controls** card floats above your left controller.
 
 **If the page won't load:** check both devices are on the same Wi-Fi, or use a phone hotspot. If
 Windows asked about **Node.js** network access, allow it on private and public networks.
