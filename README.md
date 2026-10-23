@@ -41,6 +41,9 @@ More topics (separating a mixture, lab equipment) are added one at a time; see `
 
 ## Try it
 
+**Live: https://muxsinjon.github.io/virtual-lab-vr/** (any browser; on a Meta Quest, open it in the
+Quest Browser and press **Enter the lab**).
+
 **On a computer or phone**: open the site. Click an item to pick it up: its spout or tip follows the
 cursor anywhere, and the mouse wheel (or ↑/↓) raises and lowers it. Hold the mouse button to pour; right-click
 or Esc puts it back. Nothing snaps into place, so a careless pour spills, and a stream on a rim splits

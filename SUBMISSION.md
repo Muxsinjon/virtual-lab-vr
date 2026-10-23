@@ -96,8 +96,8 @@ hackathon; it shares no code with our earlier site.
 
 ## "Try it out" links
 
-- Live: [GitHub Pages URL, e.g. https://muxsinjon.github.io/virtual-lab-vr/]
-- Code: [GitHub repo URL]
+- Live (works in any browser, and in VR on a Meta Quest): https://muxsinjon.github.io/virtual-lab-vr/
+- Code: https://github.com/Muxsinjon/virtual-lab-vr
 
 ---
 

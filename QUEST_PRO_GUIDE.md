@@ -43,6 +43,10 @@ to click, like a mouse.
 
 ## 4. Open the lab in the headset
 
+**Easiest:** in the Quest Browser, open **https://muxsinjon.github.io/virtual-lab-vr/**, bookmark it
+(the star), and press **Enter the lab**. No computer needed. The steps below are only for running
+your own copy from a PC.
+
 **On the computer** (in the project folder):
 
 ```bash
