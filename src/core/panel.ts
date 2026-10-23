@@ -13,6 +13,8 @@ export interface PanelData {
   hint: string | null;
   /** The person has been on the current task a while: make the ! pulse. */
   nudge: boolean;
+  /** A video is being recorded. */
+  recording: boolean;
   info: string;
   used: string[];
   /** Table height in cm. */
@@ -237,6 +239,23 @@ export class WorldPanel {
       c.fillText(`${d.table} cm`, 1235, by + 68);
       this.button(c, 'tableUp', '▲', 1320, by, 90, 95);
       if (d.inXR) this.button(c, 'exit', '✕ VR', 1430, by, 110, 95);
+      // Record / stop, top right of the board.
+      const rx = 1300;
+      const ry = 30;
+      const hot = this.hover === 'rec';
+      c.fillStyle = d.recording ? (hot ? '#e0453a' : '#c62828') : hot ? '#3d5a73' : '#2c4458';
+      roundRect(c, rx, ry, 240, 70, 16);
+      c.fill();
+      c.fillStyle = '#ffffff';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = '700 30px "Segoe UI", system-ui, sans-serif';
+      const recLabel = d.recording ? `■ ${t('ui.stopRec')}` : `● ${t('ui.record')}`;
+      fitText(c, recLabel, 220, 30, 700);
+      c.fillText(recLabel, rx + 120, ry + 36);
+      this.hits.push({ id: 'rec', x: rx, y: ry, w: 240, h: 70 });
+      c.textAlign = 'left';
+      c.textBaseline = 'alphabetic';
     }
 
     // Messages appear as a banner across the top of the board.

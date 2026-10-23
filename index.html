@@ -74,6 +74,10 @@
       #launchBtn { margin-top: 36px; font-size: 40px; padding: 26px 64px; border-radius: 22px; box-shadow: 0 10px 40px rgba(42, 157, 138, 0.45); }
       .launch-card .launch-hint { margin-top: 26px; font-size: 22px; line-height: 1.5; }
       #launchLang { margin-top: 22px; font-size: 20px; padding: 12px 22px; }
+      #launchRec { margin-top: 18px; font-size: 24px; padding: 14px 30px; background: #8e2a22; }
+      #launchRec:hover { background: #b0352b; }
+      #rec.recording { background: #c62828; font-weight: 700; }
+      #rec.recording:hover { background: #e0453a; }
       @media (max-width: 720px) {
         .brand p { display: none; }
         .brand { padding: 8px 12px 8px 8px; }
@@ -99,6 +103,7 @@
         <h1 data-t="app.title">Virtual Lab VR</h1>
         <p data-t="app.tagline"></p>
         <button id="launchBtn" class="primary" data-t="ui.enterLab"></button>
+        <div><button id="launchRec"></button></div>
         <p class="launch-hint" data-t="ui.launchHint"></p>
         <button id="launchLang" data-t="ui.lang"></button>
       </div>
@@ -115,6 +120,7 @@
         <select id="topic" aria-label="Topic"></select>
         <button id="reset" data-t="ui.reset"></button>
         <button id="lang" data-t="ui.lang"></button>
+        <button id="rec"></button>
         <button id="vr" class="primary" data-t="ui.enterVR"></button>
       </div>
     </header>

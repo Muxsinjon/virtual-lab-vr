@@ -2,6 +2,9 @@
 
 class LabAudio {
   private ctx: AudioContext | null = null;
+  /** Everything plays through here, so a recording can take a copy of the sound. */
+  private master: GainNode | null = null;
+  private recordDest: MediaStreamAudioDestinationNode | null = null;
   private noise: AudioBuffer | null = null;
   private pourGain: GainNode | null = null;
   private fizzGain: GainNode | null = null;
@@ -13,6 +16,8 @@ class LabAudio {
     if (!this.ctx) {
       try {
         this.ctx = new AudioContext();
+        this.master = this.ctx.createGain();
+        this.master.connect(this.ctx.destination);
       } catch {
         return;
       }
@@ -37,7 +42,7 @@ class LabAudio {
     filter.Q.value = q;
     const gain = ctx.createGain();
     gain.gain.value = 0;
-    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.connect(filter).connect(gain).connect(this.master!);
     src.start();
     return gain;
   }
@@ -64,7 +69,7 @@ class LabAudio {
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    osc.connect(g).connect(ctx.destination);
+    osc.connect(g).connect(this.master!);
     osc.start(t);
     osc.stop(t + dur + 0.02);
   }
@@ -82,9 +87,20 @@ class LabAudio {
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    src.connect(filter).connect(g).connect(ctx.destination);
+    src.connect(filter).connect(g).connect(this.master!);
     src.start(t, Math.random());
     src.stop(t + dur + 0.02);
+  }
+
+  /** The lab's sound as a stream, for recording a video. */
+  recordStream() {
+    this.unlock();
+    if (!this.ctx || !this.master) return null;
+    if (!this.recordDest) {
+      this.recordDest = this.ctx.createMediaStreamDestination();
+      this.master.connect(this.recordDest);
+    }
+    return this.recordDest.stream;
   }
 
   drip() {

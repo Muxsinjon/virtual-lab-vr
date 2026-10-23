@@ -5,6 +5,7 @@ import { Input } from './core/input';
 import { Lab, type UsageEntry } from './core/lab';
 import { WorldPanel } from './core/panel';
 import { NameTag } from './core/tag';
+import { Recorder } from './core/recorder';
 import { redrawLocalized } from './core/textures';
 import { BENCH, buildRoom, TABLE_MAX, TABLE_MIN } from './core/room';
 import type { Tool } from './core/tools';
@@ -22,6 +23,8 @@ export class App {
   private readonly controls: OrbitControls;
   private readonly panel = new WorldPanel();
   private readonly tag = new NameTag();
+  private readonly recorder = new Recorder();
+  private recTimer = 0;
   private readonly input: Input;
   private readonly clock = new THREE.Clock();
   /** Everything used this session, across topics: the "nothing runs out" tally. */
@@ -165,7 +168,11 @@ export class App {
   }
 
   private toast(key: Key, seconds = 4) {
-    const text = t(key);
+    this.say(t(key), seconds);
+  }
+
+  /** Show a message on screen and on the wall board. */
+  private say(text: string, seconds = 4) {
     if (text === this.toastText && this.toastTimer > 0) {
       this.toastTimer = seconds;
       return;
@@ -192,6 +199,7 @@ export class App {
       steps: (this.topic.steps ?? []).map((s) => ({ text: t(s.key), done: this.done.has(s.id), next: s === this.nextStep() })),
       hint: this.hintOpen && this.nextStep() ? t(this.nextStep()!.hint) : null,
       nudge: this.nudged,
+      recording: this.recorder.active,
       info: this.topic.info ? t(this.topic.info) : '',
       used: this.usageLines(),
       table: Math.round(BENCH.top * 100),
@@ -252,6 +260,7 @@ export class App {
     audio.click();
     if (id.startsWith('topic:')) this.loadTopic(id.slice(6));
     else if (id === 'hint') this.toggleHint();
+    else if (id === 'rec') this.toggleRecording();
     else if (id === 'reset') this.loadTopic(this.topic.id);
     else if (id === 'lang') setLang(getLang() === 'en' ? 'uz' : 'en');
     else if (id === 'langEn') setLang('en');
@@ -324,8 +333,19 @@ export class App {
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) use.addEventListener(ev, () => this.input.useEnd());
     $('vr').addEventListener('click', () => this.enterVR());
+    $('rec').addEventListener('click', () => this.toggleRecording());
+    $('launchRec').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!this.recorder.active) this.toggleRecording();
+      void this.enterVR();
+    });
+    this.recorder.onSaved = (name) => {
+      this.say(t('ui.saved', { name }), 9);
+      this.showRecording();
+    };
     $('launch').addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).id === 'launchLang') return;
+      const id = (e.target as HTMLElement).id;
+      if (id === 'launchLang' || id === 'launchRec') return;
       void this.enterVR();
     });
     $('launchLang').addEventListener('click', () => setLang(getLang() === 'en' ? 'uz' : 'en'));
@@ -371,6 +391,7 @@ export class App {
     if (this.topic) select.value = this.topic.id;
     $('vr').classList.toggle('off', !this.xrSupported);
     $('up').title = t('ui.up');
+    if (this.recorder) this.showRecording();
     $('down').title = t('ui.down');
     const touch = matchMedia('(pointer: coarse)').matches;
     $('hint').textContent = t(touch ? 'hint.touch' : 'hint.mouse');
@@ -485,5 +506,34 @@ export class App {
       }
     }
     this.renderer.render(this.scene, this.camera);
+    this.recorder.capture(this.renderer, this.scene);
+    if (this.recorder.active) {
+      this.recTimer -= dt;
+      if (this.recTimer <= 0) {
+        this.recTimer = 0.5;
+        const s = Math.floor(this.recorder.seconds);
+        $('rec').textContent = `■ ${t('ui.stopRec')} ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  /** Start or stop recording a video of the lab. */
+  private toggleRecording() {
+    audio.unlock();
+    if (this.recorder.active) this.recorder.stop();
+    else if (!this.recorder.start()) {
+      this.toast('ui.noRec', 6);
+      return;
+    }
+    this.showRecording();
+  }
+
+  private showRecording() {
+    const on = this.recorder.active;
+    const btn = $('rec');
+    btn.classList.toggle('recording', on);
+    btn.textContent = on ? `■ ${t('ui.stopRec')} 00:00` : `● ${t('ui.record')}`;
+    $('launchRec').textContent = `● ${t('ui.recEnter')}`;
+    if (this.topic) this.refreshPanel();
   }
 }
