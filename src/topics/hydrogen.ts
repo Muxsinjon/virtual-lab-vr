@@ -17,11 +17,11 @@ export const hydrogen: TopicDef = {
   ready: true,
   info: 'h2.info',
   steps: [
-    { id: 'zinc', key: 'h2.s1' },
-    { id: 'acid', key: 'h2.s2' },
-    { id: 'collect', key: 'h2.s3' },
-    { id: 'pop', key: 'h2.s4' },
-    { id: 'leak', key: 'h2.s5' },
+    { id: 'zinc', key: 'h2.s1', hint: 'h2.h1' },
+    { id: 'acid', key: 'h2.s2', hint: 'h2.h2' },
+    { id: 'collect', key: 'h2.s3', hint: 'h2.h3' },
+    { id: 'pop', key: 'h2.s4', hint: 'h2.h4' },
+    { id: 'leak', key: 'h2.s5', hint: 'h2.h5' },
   ],
   build(lab, api) {
     // 10% hydrochloric acid is about 2.9 M; amounts are per 100 mL.

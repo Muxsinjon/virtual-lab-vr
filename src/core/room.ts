@@ -36,7 +36,18 @@ export const TABLE_MAX = 1.15;
 /** Where the task board hangs on the back wall. */
 export const BOARD = { x: 0, y: 1.84, z: -1.552, w: 1.5, h: 0.94 };
 
-const ROOM = { left: -3.2, right: 3.2, back: -1.6, front: 3.6, height: 3 };
+export const ROOM = { left: -3.2, right: 3.2, back: -1.6, front: 3.6, height: 3 };
+
+/** Furniture you can't walk into, as floor rectangles [minX, maxX, minZ, maxZ]. */
+export const OBSTACLES: [number, number, number, number][] = [
+  [-0.9, 0.9, -0.92, -0.22], // your bench
+  [-2.1, -0.5, 0.875, 1.525], // student benches
+  [0.5, 2.1, 0.875, 1.525],
+  [-2.1, -0.5, 2.075, 2.725],
+  [0.5, 2.1, 2.075, 2.725],
+  [-2.85, -1.65, -1.05, -0.45], // teacher's desk
+  [1.9, 3.0, -1.55, -0.75], // fume hood
+];
 const TILE_HEIGHT = 1.25;
 
 export const std = (color: number | string, roughness = 0.7, metalness = 0, map?: THREE.Texture) =>
@@ -216,20 +227,40 @@ export function buildRoom(scene: THREE.Scene) {
   add(box(0.02, 0.16, 0.05), cross, ROOM.left + 0.105, 1.55, 2.4);
   add(box(0.02, 0.05, 0.16), cross, ROOM.left + 0.105, 1.55, 2.4);
 
+  const amberMat = new THREE.MeshStandardMaterial({ color: 0x6b3510, roughness: 0.12, transparent: true, opacity: 0.85 });
+  const benchGlass = new THREE.MeshStandardMaterial({ color: 0xeaf4f6, roughness: 0.05, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide });
   // Other student benches behind you, with stools.
   const stoolSeat = std(0x234a6b, 0.6);
   for (const z of [1.2, 2.4]) {
     for (const x of [-1.3, 1.3]) {
+      // Epoxy top on a steel frame: four square legs with feet, an apron, a lower shelf, and a
+      // drawer unit on one side.
       add(box(1.6, 0.035, 0.65), epoxyMat, x, 0.9, z, 0, 0, true);
-      add(box(1.56, 0.78, 0.6), woodMat, x, 0.48, z, 0, 0, true);
+      for (const sz of [-0.29, 0.29]) add(box(1.5, 0.06, 0.025), darkSteelMat, x, 0.85, z + sz);
+      for (const sx of [-0.75, 0.75]) {
+        add(box(0.025, 0.06, 0.56), darkSteelMat, x + sx, 0.85, z);
+        for (const sz of [-0.28, 0.28]) {
+          add(box(0.045, 0.875, 0.045), darkSteelMat, x + sx, 0.4375, z + sz, 0, 0, true);
+          add(box(0.06, 0.012, 0.06), blackMat, x + sx, 0.006, z + sz);
+        }
+        add(box(0.025, 0.025, 0.56), darkSteelMat, x + sx, 0.18, z);
+      }
+      add(box(1.48, 0.02, 0.52), woodMat, x, 0.2, z, 0, 0, true);
+      add(box(0.42, 0.6, 0.54), woodMat, x + 0.5, 0.52, z, 0, 0, true);
+      for (const dy of [0.36, 0.52, 0.68]) {
+        add(new THREE.PlaneGeometry(0.39, 0.14), darkWoodMat, x + 0.5, dy, z - 0.271, Math.PI);
+        add(box(0.1, 0.012, 0.02), handleMat, x + 0.5, dy, z - 0.282);
+      }
       for (const sx of [-0.4, 0.4]) {
         add(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 20), stoolSeat, x + sx, 0.65, z - 0.55, 0, 0, true);
         add(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8), steelMat, x + sx, 0.31, z - 0.55);
         add(new THREE.CylinderGeometry(0.16, 0.18, 0.02, 20), darkSteelMat, x + sx, 0.01, z - 0.55);
       }
-      // A rack and a couple of bottles left out.
-      add(box(0.22, 0.06, 0.06), darkWoodMat, x - 0.3, 0.95, z - 0.1);
-      add(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 14), std(0x6b3a12, 0.2), x + 0.4, 0.995, z - 0.12);
+      // Left out by the last class: a capped amber reagent bottle and an empty beaker.
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 18), amberMat, x + 0.4, 0.977, z - 0.12, 0, 0, true);
+      add(new THREE.CylinderGeometry(0.012, 0.024, 0.02, 14), amberMat, x + 0.4, 1.047, z - 0.12);
+      add(new THREE.CylinderGeometry(0.014, 0.014, 0.022, 14), blackMat, x + 0.4, 1.068, z - 0.12);
+      add(new THREE.CylinderGeometry(0.032, 0.032, 0.085, 20, 1, true), benchGlass, x - 0.35, 0.96, z - 0.08);
     }
   }
 

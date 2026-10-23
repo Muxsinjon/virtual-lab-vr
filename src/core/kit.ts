@@ -35,7 +35,7 @@ export function reagentBottle(lab: Lab, spec: BottleSpec, mix: Mixture, x: numbe
   tool.root.add(v.root);
   tool.vessel = v;
   tool.use = 'pour';
-  tool.pourRate = 16;
+  tool.pourRate = 70;
   tool.gripOffset = 0.08;
   tool.holdHeight = 0.24;
   tool.tip.set(v.rimRadius, v.height, 0);
@@ -81,7 +81,7 @@ export function beaker(lab: Lab, x: number, z: number) {
   tool.root.add(v.root);
   tool.vessel = v;
   tool.use = 'pour';
-  tool.pourRate = 30;
+  tool.pourRate = 150;
   tool.gripOffset = 0.05;
   tool.holdHeight = 0.2;
   tool.tip.set(v.rimRadius, v.height, 0);

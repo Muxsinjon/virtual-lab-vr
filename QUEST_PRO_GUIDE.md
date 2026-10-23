@@ -90,6 +90,12 @@ The **wall board** behind the bench shows your tasks and what you've used. Its b
 still feels too high or low, push the right thumbstick up or down, or use **Table ▼ ▲** on the board.
 Your experiment stays as it is: the bench moves with everything on it.
 
+**Stuck on a task?** Press the yellow **!** next to it on the wall board (point and pull the
+trigger). It shows step-by-step instructions. **EN / UZ** on the board switches the language.
+
+**Walls and furniture are solid.** If you walk into a wall or a bench (for real or with the
+stick), you stop there and a red warning appears in front of you.
+
 ## 6. A first experiment (Acids, bases and indicators)
 
 1. Reach for the **HCl** bottle (red label) and hold **Grip**.

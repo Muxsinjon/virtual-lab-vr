@@ -5,8 +5,8 @@ import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { audio } from './audio';
 import type { Lab } from './lab';
 import type { WorldPanel } from './panel';
-import { BENCH } from './room';
-import { HelpCard } from './help';
+import { BENCH, OBSTACLES, ROOM } from './room';
+import { HelpCard, Warning } from './help';
 import type { Holder, Tool } from './tools';
 
 // Picking things up and using them, with a mouse, a finger or VR controllers.
@@ -54,7 +54,7 @@ function shown(o: THREE.Object3D | null) {
   for (; o; o = o.parent) if (!o.visible) return false;
   return true;
 }
-const POUR_TILT = 1.95;
+const POUR_TILT = 2.75;
 
 export class Input {
   heldPointer: Tool | null = null;
@@ -269,8 +269,9 @@ export class Input {
     right.y = 0;
     right.normalize();
     const fwd = new THREE.Vector3().crossVectors(UP, right).normalize();
-    const want = tool.use === 'pour' && this.useActive ? POUR_TILT : 0;
-    tool.tilt += THREE.MathUtils.clamp(want - tool.tilt, -dt * 4, dt * 2.2);
+    // Holding the button keeps tipping it further, so the longer you hold, the faster it pours.
+    if (tool.use === 'pour' && this.useActive) tool.tilt = Math.min(POUR_TILT, tool.tilt + dt * (tool.tilt < 0.9 ? 2.2 : 0.75));
+    else tool.tilt = Math.max(0, tool.tilt - dt * 4);
     const q = new THREE.Quaternion()
       .setFromAxisAngle(fwd, tool.tilt)
       .multiply(new THREE.Quaternion().setFromAxisAngle(UP, Math.atan2(-right.z, right.x)))
@@ -332,6 +333,7 @@ export class Input {
   /** Meta Quest controllers: sticks move, turn and raise you; A/X recentres; B/Y shows the help card. */
   private buttonsAndSticks(dt: number) {
     this.help.update(dt);
+    this.confine(dt);
     if (this.recenterIn > 0 && --this.recenterIn === 0) {
       this.recenter();
       this.host.onRecentered(this.head().pos.y);
@@ -357,7 +359,7 @@ export class Input {
         } else if (Math.abs(x) < 0.3) hand.turnReady = true;
         if (Math.abs(y) > 0.3 && Math.abs(x) < 0.5) this.host.onTableNudge(-y * 0.15 * dt);
       }
-      if (fresh(4)) this.recenter(); // A or X
+      if (fresh(4)) this.recenter(); // A or X (after the walls below)
       if (fresh(5)) this.help.toggle(); // B or Y
       hand.was = pad.buttons.map((b) => b.pressed);
     }
@@ -366,6 +368,50 @@ export class Input {
   /** Head position and level facing direction in the world. In VR, three.js keeps the camera's
    *  headset pose relative to the rig, so combining it with the rig's current transform is
    *  always up to date, even right after the rig has moved. */
+  /**
+   * Walls and furniture are solid. Whether you push the stick or really walk, your head stops at
+   * the wall (the room is moved back under you), and a warning appears. At furniture you may lean
+   * in a little, to reach across a bench, but not walk through it.
+   */
+  private confine(dt: number) {
+    const rig = this.host.rig;
+    const { pos } = this.head();
+    const pad = 0.22;
+    let pushX = 0;
+    let pushZ = 0;
+    let what: 'wall' | 'furniture' | null = null;
+    if (pos.x < ROOM.left + pad) pushX = ROOM.left + pad - pos.x;
+    if (pos.x > ROOM.right - pad) pushX = ROOM.right - pad - pos.x;
+    if (pos.z < ROOM.back + pad) pushZ = ROOM.back + pad - pos.z;
+    if (pos.z > ROOM.front - pad) pushZ = ROOM.front - pad - pos.z;
+    if (pushX || pushZ) what = 'wall';
+    else {
+      const lean = 0.28; // how far you may lean over furniture
+      for (const [x0, x1, z0, z1] of OBSTACLES) {
+        const ix0 = x0 + lean;
+        const ix1 = x1 - lean;
+        const iz0 = z0 + lean;
+        const iz1 = z1 - lean;
+        if (pos.x <= ix0 || pos.x >= ix1 || pos.z <= iz0 || pos.z >= iz1) continue;
+        // Push out through the nearest side.
+        const out = [ix0 - pos.x, ix1 - pos.x, iz0 - pos.z, iz1 - pos.z];
+        const i = out.map(Math.abs).indexOf(Math.min(...out.map(Math.abs)));
+        if (i < 2) pushX = out[i];
+        else pushZ = out[i];
+        what = 'furniture';
+        break;
+      }
+    }
+    if (what) {
+      rig.position.x += pushX;
+      rig.position.z += pushZ;
+      this.warning.show(what === 'wall' ? 'warn.wall' : 'warn.furniture');
+    }
+    this.warning.update(dt);
+  }
+
+  readonly warning = new Warning();
+
   private head() {
     const { camera, rig } = this.host;
     rig.updateMatrix();

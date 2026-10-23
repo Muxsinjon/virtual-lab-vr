@@ -30,8 +30,8 @@ export class Tool {
   drop?: { part: Mixture; color: number };
   /** Second line of the floating name tag (concentration, volume, reading). */
   detail?: () => string;
-  /** mL per second at full tilt. */
-  pourRate = 18;
+  /** The most it can pour, in mL per second (a narrow neck limits a bottle). */
+  pourRate = 60;
   held: Holder | null = null;
   /** 0..1 while sliding back home after being let go. */
   returning = -1;

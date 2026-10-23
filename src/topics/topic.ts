@@ -13,7 +13,8 @@ export interface TopicDef {
   /** Unready topics show in the menu as "Coming soon". */
   ready: boolean;
   info?: Key;
-  steps?: { id: string; key: Key }[];
+  /** Tasks in order; each has step-by-step help behind the ! button. */
+  steps?: { id: string; key: Key; hint: Key }[];
   /** Lays out the bench and returns the per-frame update for this topic's chemistry. */
   build?: (lab: Lab, api: TopicApi) => (dt: number) => void;
 }

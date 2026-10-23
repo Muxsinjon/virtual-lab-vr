@@ -97,3 +97,63 @@ export class HelpCard {
     this.texture.needsUpdate = true;
   }
 }
+
+/** A short warning that floats in front of your eyes in VR, e.g. when you walk into a wall. */
+export class Warning {
+  readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private readonly canvas = document.createElement('canvas');
+  private readonly texture: THREE.CanvasTexture;
+  private key: Key | null = null;
+  private timer = 0;
+
+  constructor() {
+    this.canvas.width = 1024;
+    this.canvas.height = 200;
+    this.texture = new THREE.CanvasTexture(this.canvas);
+    this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.36, 0.07),
+      new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }),
+    );
+    this.mesh.renderOrder = 1000;
+    this.mesh.position.set(0, -0.06, -0.6);
+    this.mesh.visible = false;
+  }
+
+  show(key: Key) {
+    this.timer = 1.6;
+    this.mesh.visible = true;
+    if (key === this.key) return;
+    this.key = key;
+    this.redraw();
+  }
+
+  redraw() {
+    if (!this.key) return;
+    const c = this.canvas.getContext('2d')!;
+    const { width: W, height: H } = this.canvas;
+    c.clearRect(0, 0, W, H);
+    c.fillStyle = 'rgba(190, 40, 30, 0.92)';
+    c.beginPath();
+    c.roundRect(4, 4, W - 8, H - 8, 40);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    let size = 70;
+    const text = `⚠  ${t(this.key)}`;
+    c.font = `700 ${size}px ${FONT}`;
+    while (c.measureText(text).width > W - 60 && size > 30) {
+      size -= 4;
+      c.font = `700 ${size}px ${FONT}`;
+    }
+    c.fillText(text, W / 2, H / 2 + 4);
+    this.texture.needsUpdate = true;
+  }
+
+  update(dt: number) {
+    if (this.timer <= 0) return;
+    this.timer -= dt;
+    if (this.timer <= 0) this.mesh.visible = false;
+  }
+}

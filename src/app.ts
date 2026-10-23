@@ -29,6 +29,11 @@ export class App {
   private topic!: TopicDef;
   private topicUpdate: (dt: number) => void = () => {};
   private done = new Set<string>();
+  /** Step-by-step help is open for the current task. */
+  private hintOpen = false;
+  /** Seconds spent on the current task, to offer help when someone is stuck. */
+  private stepTime = 0;
+  private nudged = false;
   private toastText = '';
   private toastTimer = 0;
   private usageSig = '';
@@ -45,6 +50,7 @@ export class App {
     r.toneMapping = THREE.NeutralToneMapping;
     r.toneMappingExposure = 1.18;
     r.shadowMap.enabled = true;
+    r.localClippingEnabled = true; // level liquid surfaces
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.xr.enabled = true;
     r.xr.setReferenceSpaceType('local-floor');
@@ -95,6 +101,8 @@ export class App {
       onTableNudge: (dy) => this.setTable(BENCH.top + dy, true),
     });
 
+    // Warnings in VR float in front of your eyes.
+    this.camera.add(this.input.warning.mesh);
     this.panel.onButton = (id) => this.onButton(id);
     this.setupOverlay();
     onLangChange(() => this.relabel());
@@ -117,6 +125,9 @@ export class App {
     this.lab?.dispose();
     this.topic = def;
     this.done = new Set();
+    this.hintOpen = false;
+    this.stepTime = 0;
+    this.nudged = false;
     this.lab = new Lab(this.usage, (key) => this.toast(key));
     this.scene.add(this.lab.root);
     this.topicUpdate = def.build(this.lab, {
@@ -142,6 +153,9 @@ export class App {
     if (this.done.has(step)) return;
     this.done.add(step);
     audio.success();
+    this.hintOpen = false;
+    this.stepTime = 0;
+    this.nudged = false;
     const all = this.topic.steps?.every((s) => this.done.has(s.id));
     // Let the step's own message show first.
     if (all) setTimeout(() => this.toast('ui.allDone', 6), 2500);
@@ -173,7 +187,9 @@ export class App {
   private refreshPanel() {
     this.panel.set({
       title: t(this.topic.title),
-      steps: (this.topic.steps ?? []).map((s) => ({ text: t(s.key), done: this.done.has(s.id) })),
+      steps: (this.topic.steps ?? []).map((s) => ({ text: t(s.key), done: this.done.has(s.id), next: s === this.nextStep() })),
+      hint: this.hintOpen && this.nextStep() ? t(this.nextStep()!.hint) : null,
+      nudge: this.nudged,
       info: this.topic.info ? t(this.topic.info) : '',
       used: this.usageLines(),
       table: Math.round(BENCH.top * 100),
@@ -183,6 +199,15 @@ export class App {
     });
     $('used').textContent = this.usageLines().join(' · ') || t('ui.usedNone');
     this.fillTasks();
+  }
+
+  private nextStep() {
+    return this.topic.steps?.find((s) => !this.done.has(s.id));
+  }
+
+  private toggleHint() {
+    this.hintOpen = !this.hintOpen;
+    this.refreshPanel();
   }
 
   /** The on-screen task list (screens only; in VR the wall board shows it). */
@@ -196,9 +221,26 @@ export class App {
     const next = steps.find((s) => !this.done.has(s.id));
     for (const s of steps) {
       const li = document.createElement('li');
-      li.textContent = t(s.key);
+      const text = document.createElement('span');
+      text.textContent = t(s.key);
+      li.appendChild(text);
       if (this.done.has(s.id)) li.className = 'done';
-      else if (s === next) li.className = 'next';
+      else if (s === next) {
+        li.className = 'next';
+        // "!" opens step-by-step help for this task.
+        const btn = document.createElement('button');
+        btn.className = `hint-btn${this.nudged && !this.hintOpen ? ' pulse' : ''}`;
+        btn.textContent = '!';
+        btn.title = t('ui.help');
+        btn.addEventListener('click', () => this.toggleHint());
+        li.appendChild(btn);
+        if (this.hintOpen) {
+          const help = document.createElement('div');
+          help.className = 'hint';
+          help.textContent = t(s.hint);
+          li.appendChild(help);
+        }
+      }
       list.appendChild(li);
     }
     $('taskInfo').textContent = this.topic.info ? t(this.topic.info) : '';
@@ -207,8 +249,11 @@ export class App {
   private onButton(id: string) {
     audio.click();
     if (id.startsWith('topic:')) this.loadTopic(id.slice(6));
+    else if (id === 'hint') this.toggleHint();
     else if (id === 'reset') this.loadTopic(this.topic.id);
     else if (id === 'lang') setLang(getLang() === 'en' ? 'uz' : 'en');
+    else if (id === 'langEn') setLang('en');
+    else if (id === 'langUz') setLang('uz');
     else if (id === 'tableDown') this.setTable(BENCH.top - 0.03, true);
     else if (id === 'tableUp') this.setTable(BENCH.top + 0.03, true);
     else if (id === 'exit') void this.renderer.xr.getSession()?.end();
@@ -255,6 +300,7 @@ export class App {
   private relabel() {
     for (const l of this.lab.labels) l.redraw();
     this.input.help.draw();
+    this.input.warning.redraw();
     this.fillOverlayText();
     this.refreshPanel();
   }
@@ -405,6 +451,12 @@ export class App {
     this.topicUpdate(dt);
     this.tag.update(this.input.focus(), dt, this.renderer.xr.isPresenting ? 1.3 : 1);
 
+    // Offer step-by-step help to anyone who has been on the same task for a while.
+    this.stepTime += dt;
+    if (!this.nudged && this.stepTime > 45 && this.nextStep()) {
+      this.nudged = true;
+      this.toast('ui.stuck', 7);
+    }
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) {

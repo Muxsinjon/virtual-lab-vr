@@ -18,6 +18,11 @@ virtual lab bench, as many times as they want:
 - **Real chemistry under the hood**: pH is calculated from the actual amounts mixed, indicator
   colours follow their real transition ranges, and reactions use up their reagents at realistic rates.
 - **A task list for each topic** ticks itself off as you do each step, and explains the equation.
+  A **!** next to the current task opens step-by-step help, and it pulses if you seem stuck.
+- **Physical behaviour**: liquid surfaces stay level when you tilt glassware; pouring follows weir
+  flow (the further you tilt, the faster it pours); a stream on a rim splits; spills splash and
+  spread; walls and furniture stop you.
+- **Adjustable table height**: fitted to your eye height when you enter VR, then adjustable.
 - **A "used this session" counter**: every mL poured is counted next to "Supply left: unlimited".
 - **English and Uzbek**, switchable at any time.
 - **Seated mode** for students who can't stand at the bench.

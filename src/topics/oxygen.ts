@@ -19,11 +19,11 @@ export const oxygen: TopicDef = {
   ready: true,
   info: 'o2.info',
   steps: [
-    { id: 'peroxide', key: 'o2.s1' },
-    { id: 'catalyst', key: 'o2.s2' },
-    { id: 'light', key: 'o2.s3' },
-    { id: 'glow', key: 'o2.s4' },
-    { id: 'relight', key: 'o2.s5' },
+    { id: 'peroxide', key: 'o2.s1', hint: 'o2.h1' },
+    { id: 'catalyst', key: 'o2.s2', hint: 'o2.h2' },
+    { id: 'light', key: 'o2.s3', hint: 'o2.h3' },
+    { id: 'glow', key: 'o2.s4', hint: 'o2.h4' },
+    { id: 'relight', key: 'o2.s5', hint: 'o2.h5' },
   ],
   build(lab, api) {
     // 3% hydrogen peroxide is 0.88 M; amounts are per 100 mL.

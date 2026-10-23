@@ -302,15 +302,21 @@ export class Lab {
     const src = tool.vessel;
     const liquid = !!src && !tool.solid;
     if (liquid && !src!.infinite && src!.mix.volume < 0.05) return false;
-    const fill = liquid ? src!.fill : 0.5;
-    const threshold = THREE.MathUtils.lerp(1.75, 0.75, fill);
+    // Liquid spills over the lowest point of the lip once its level surface rises above it, and
+    // flows like water over a weir: rate ∝ (height above the lip)^1.5. So tilting further pours
+    // faster, a full beaker pours early, and a nearly empty one must be tipped right over.
     const tilt = tool.tiltAngle();
-    if (tilt < threshold) return false;
-    const k = THREE.MathUtils.clamp((tilt - threshold) / 0.5, 0.15, 1);
+    const lipR = src ? src.rimRadius : (tool.tip.x || 0.028);
+    const lipH = src ? src.height : (tool.tip.y || 0.075);
+    const level = src ? src.liquidHeight() : 0.03;
+    const head = lipR * Math.sin(tilt) - (lipH - level) * Math.cos(tilt);
+    if (head <= 0) return false;
+    const rate = Math.min(tool.pourRate, WEIR * Math.pow(head, 1.5)); // mL/s
+    const k = THREE.MathUtils.clamp(rate / 60, 0.05, 1.5); // for sound, splash and stream width
     const spout = this.lowestRimPoint(tool, src ?? null, new THREE.Vector3());
 
     if (tool.solid) {
-      const acc = (this.solidAcc.get(tool) ?? 0.6) + tool.solid.perSecond * k * dt;
+      const acc = (this.solidAcc.get(tool) ?? 0.6) + tool.solid.perSecond * Math.min(2.5, Math.pow(head / 0.02, 1.5)) * dt;
       let n = Math.floor(acc);
       this.solidAcc.set(tool, acc - n);
       while (n-- > 0) {
@@ -322,12 +328,12 @@ export class Lab {
     }
 
     const s = src!;
-    let ml = tool.pourRate * k * dt;
+    let ml = rate * dt;
     if (!s.infinite) ml = Math.min(ml, s.mix.volume);
     const part = scaled(s.mix, ml / s.mix.volume);
     if (!s.infinite) s.mix = scaled(s.mix, 1 - ml / s.mix.volume);
     else this.record(tool.kind, tool.name, 'ml', ml);
-    this.pourLevel = Math.max(this.pourLevel, k);
+    this.pourLevel = Math.max(this.pourLevel, Math.min(1, k));
 
     const { color, opacity } = s.tint(s.mix);
     // The stream lands where it really falls. It wavers a little more the further it drops, so a
@@ -386,7 +392,8 @@ export class Lab {
     stream.scale.y = Math.max(0.005, spout.y - endY);
     stream.material.color.setHex(color);
     stream.material.opacity = Math.min(0.9, opacity + 0.25);
-    stream.scale.x = stream.scale.z = 0.6 + k * 0.6;
+    // A thicker stream for a faster pour (cross-section grows with flow).
+    stream.scale.x = stream.scale.z = THREE.MathUtils.clamp(Math.sqrt(rate / 20), 0.45, 2.6);
     return true;
   }
 
@@ -516,6 +523,9 @@ export class Lab {
     this.root.removeFromParent();
   }
 }
+
+/** Weir constant for pouring over a lip, in mL/s per m^1.5 (tuned for ~60 mL/s from a half-full beaker on its side). */
+const WEIR = 9000;
 
 /** Height of whatever is under a point: the bench top, or the floor. */
 function groundBelow(p: THREE.Vector3) {

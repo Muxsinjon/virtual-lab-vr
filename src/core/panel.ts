@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { t } from '../i18n';
+import { getLang, t } from '../i18n';
 import { fitText } from './parts';
 import { BOARD } from './room';
 
@@ -8,7 +8,11 @@ import { BOARD } from './room';
 
 export interface PanelData {
   title: string;
-  steps: { text: string; done: boolean }[];
+  steps: { text: string; done: boolean; next: boolean }[];
+  /** Step-by-step help for the current task, when opened with its ! button. */
+  hint: string | null;
+  /** The person has been on the current task a while: make the ! pulse. */
+  nudge: boolean;
   info: string;
   used: string[];
   /** Table height in cm. */
@@ -159,18 +163,41 @@ export class WorldPanel {
           c.stroke();
         }
         c.fillStyle = s.done ? '#8fa6b6' : '#ffffff';
-        c.font = '600 40px "Segoe UI", system-ui, sans-serif';
-        fitText(c, s.text, 1000, 40, 600);
+        c.font = `600 40px "Segoe UI", system-ui, sans-serif`;
+        fitText(c, s.text, s.next ? 880 : 1000, 40, 600);
         c.fillText(s.text, 125, y);
+        if (s.next) {
+          // "!" opens step-by-step help for the task you're on.
+          const bx = 1030;
+          const hot = this.hover === 'hint' || !!d.hint;
+          c.fillStyle = hot ? '#ffd978' : d.nudge ? '#ffb347' : '#f4c95d';
+          c.beginPath();
+          c.arc(bx + 28, y - 12, d.nudge && !d.hint ? 32 : 28, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = '#1b2533';
+          c.textAlign = 'center';
+          c.font = '900 40px "Segoe UI", system-ui, sans-serif';
+          c.fillText('!', bx + 28, y + 2);
+          c.textAlign = 'left';
+          this.hits.push({ id: 'hint', x: bx - 6, y: y - 52, w: 68, h: 80 });
+        }
       });
 
       // Equation / explanation box.
       const infoY = 262 + d.steps.length * 76 - 10;
-      c.fillStyle = '#1e3243';
-      roundRect(c, 60, infoY, 1050, 150, 16);
+      c.fillStyle = d.hint ? '#3a3216' : '#1e3243';
+      roundRect(c, 60, infoY, 1050, 175, 16);
       c.fill();
-      c.fillStyle = '#e8f1f6';
-      wrap(c, d.info, 85, infoY + 52, 1000, 44, '500 34px "Segoe UI", system-ui, sans-serif', 3);
+      if (d.hint) {
+        c.fillStyle = '#f4c95d';
+        c.font = '700 28px "Segoe UI", system-ui, sans-serif';
+        c.fillText(`! ${t('ui.help')}`, 85, infoY + 38);
+        c.fillStyle = '#fff6dc';
+        wrap(c, d.hint, 85, infoY + 76, 1000, 34, '500 28px "Segoe UI", system-ui, sans-serif', 3);
+      } else {
+        c.fillStyle = '#e8f1f6';
+        wrap(c, d.info, 85, infoY + 52, 1000, 44, '500 34px "Segoe UI", system-ui, sans-serif', 3);
+      }
 
       // Usage: the point of the whole project, nothing runs out.
       const ux = 1160;
@@ -196,7 +223,9 @@ export class WorldPanel {
       const by = H - 145;
       this.button(c, 'topics', `☰ ${t('ui.topics')}`, 60, by, 330, 95, true);
       this.button(c, 'reset', `↺ ${t('ui.reset')}`, 410, by, 360, 95);
-      this.button(c, 'lang', t('ui.lang'), 790, by, 250, 95);
+      // Language: both choices visible, the current one highlighted.
+      this.button(c, 'langEn', 'EN', 790, by, 120, 95, getLang() === 'en');
+      this.button(c, 'langUz', 'UZ', 920, by, 120, 95, getLang() === 'uz');
       // Table height: lower / current / raise.
       this.button(c, 'tableDown', '▼', 1060, by, 90, 95);
       c.fillStyle = '#ffffff';

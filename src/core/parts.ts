@@ -154,9 +154,11 @@ export class Vessel {
       new THREE.CircleGeometry(1, 28),
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.02, transparent: true, opacity: 0.5, depthWrite: false, envMapIntensity: 2 }),
     );
-    this.surface.rotation.x = -Math.PI / 2;
     this.surface.renderOrder = 1;
     this.surface.visible = false;
+    this.liquid.material.clippingPlanes = [this.levelPlane];
+    this.liquid.material.side = THREE.DoubleSide;
+    this.surface.material.clippingPlanes = [this.bottomPlane, this.rimPlane];
     this.root.add(this.liquid, this.surface, this.solids);
   }
 
@@ -185,6 +187,12 @@ export class Vessel {
   }
 
   /** Refresh the liquid mesh from the mixture. */
+  /**
+   * Refresh the liquid from the mixture. The surface stays level however the glass is tilted:
+   * the liquid is the vessel's inside, cut by a horizontal plane at the right height. For a
+   * tilted cylinder, a level surface crossing the axis at the upright fill height holds the
+   * same volume, so the amount never appears to change as you tip it.
+   */
   updateLook() {
     const h = this.liquidHeight();
     const show = h > 0.0008 && !this.sink;
@@ -192,17 +200,51 @@ export class Vessel {
     this.surface.visible = show;
     if (!show) return;
     const r = this.radius * 0.97;
-    this.liquid.scale.set(r, h, r);
-    this.liquid.position.y = h / 2 + 0.001;
-    this.surface.scale.set(r, r, 1);
-    this.surface.position.y = h + 0.0012;
+    const usable = this.neckStart ?? this.height * 0.92;
+    this.liquid.scale.set(r, usable, r);
+    this.liquid.position.y = usable / 2 + 0.001;
+
+    this.root.updateMatrixWorld();
+    this.root.getWorldQuaternion(_q);
+    const axis = _axis.set(0, 1, 0).applyQuaternion(_q);
+    const base = this.root.getWorldPosition(_base);
+    const level = _level.copy(base).addScaledVector(axis, h + 0.001);
+    this.levelPlane.set(_down, level.y);
+    // The surface can't poke out through the bottom or over the rim.
+    this.bottomPlane.setFromNormalAndCoplanarPoint(axis, base);
+    this.rimPlane.setFromNormalAndCoplanarPoint(_neg.copy(axis).negate(), _rim.copy(base).addScaledVector(axis, usable));
+
+    // The surface is the ellipse where the level plane cuts the cylinder: r across, r / cos(tilt)
+    // along the direction of tilt.
+    const cos = Math.max(0.2, Math.abs(axis.y));
+    const yaw = Math.atan2(-axis.z, axis.x);
+    _flat.setFromAxisAngle(_up, Math.abs(axis.x) + Math.abs(axis.z) > 1e-4 ? yaw : 0).multiply(_lie);
+    this.surface.quaternion.copy(_q.invert()).multiply(_flat);
+    this.surface.position.copy(this.root.worldToLocal(level.clone()));
+    this.surface.scale.set(r / cos, r, 1);
+
     const { color, opacity } = this.tint(this.mix);
     this.liquid.material.color.setHex(color);
     this.liquid.material.opacity = Math.min(0.92, opacity + 0.1);
     this.surface.material.color.setHex(color).lerp(WHITE, 0.25);
     this.surface.material.opacity = Math.min(0.95, opacity + 0.25);
   }
+
+  private readonly levelPlane = new THREE.Plane();
+  private readonly bottomPlane = new THREE.Plane();
+  private readonly rimPlane = new THREE.Plane();
 }
+
+const _q = new THREE.Quaternion();
+const _flat = new THREE.Quaternion();
+const _lie = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+const _up = new THREE.Vector3(0, 1, 0);
+const _down = new THREE.Vector3(0, -1, 0);
+const _axis = new THREE.Vector3();
+const _neg = new THREE.Vector3();
+const _base = new THREE.Vector3();
+const _level = new THREE.Vector3();
+const _rim = new THREE.Vector3();
 
 export type Draw = (c: CanvasRenderingContext2D, W: number, H: number) => void;
 
