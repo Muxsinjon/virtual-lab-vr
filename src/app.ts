@@ -334,20 +334,13 @@ export class App {
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) use.addEventListener(ev, () => this.input.useEnd());
     $('vr').addEventListener('click', () => this.enterVR());
     $('rec').addEventListener('click', () => this.toggleRecording());
-    $('launchRec').addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (!this.recorder.active) this.toggleRecording();
-      void this.enterVR();
-    });
     this.recorder.onSaved = (name) => {
       this.say(t('ui.saved', { name }), 9);
       this.showRecording();
     };
-    $('launch').addEventListener('click', (e) => {
-      const id = (e.target as HTMLElement).id;
-      if (id === 'launchLang' || id === 'launchRec') return;
-      void this.enterVR();
-    });
+    // Start screen: in VR with a headset, or on this screen with mouse or touch (full screen).
+    $('launchBtn').addEventListener('click', () => void this.enterVR());
+    $('launchScreen').addEventListener('click', () => this.enterScreen());
     $('launchLang').addEventListener('click', () => setLang(getLang() === 'en' ? 'uz' : 'en'));
     // Raise / lower while the button is held down.
     for (const [id, dy] of [['up', 0.012], ['down', -0.012]] as const) {
@@ -366,9 +359,6 @@ export class App {
     if (xr) {
       void xr.isSessionSupported('immersive-vr').then((ok) => {
         this.xrSupported = ok;
-        // In a headset's browser, skip the website: show one big button into the lab.
-        const headset = /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent) || new URLSearchParams(location.search).has('vr');
-        $('launch').hidden = !(ok && headset);
         this.fillOverlayText();
       });
     }
@@ -390,6 +380,11 @@ export class App {
     }
     if (this.topic) select.value = this.topic.id;
     $('vr').classList.toggle('off', !this.xrSupported);
+    // Without a headset the VR button says so, and the on-screen button becomes the main one.
+    const vrBtn = $<HTMLButtonElement>('launchBtn');
+    vrBtn.disabled = !this.xrSupported;
+    vrBtn.textContent = this.xrSupported ? t('ui.enterVRLab') : t('ui.noHeadset');
+    $('launchScreen').classList.toggle('primary', !this.xrSupported);
     $('up').title = t('ui.up');
     if (this.recorder) this.showRecording();
     $('down').title = t('ui.down');
@@ -406,6 +401,15 @@ export class App {
     const use = $('use');
     use.hidden = tool.use === 'none';
     use.textContent = tool.use === 'drip' ? t('ui.use.drip') : t('ui.use.pour');
+  }
+
+  /** No headset: use the lab right here in the browser, full screen if the browser allows it. */
+  private enterScreen() {
+    audio.unlock();
+    $('launch').hidden = true;
+    const el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) void el.requestFullscreen().catch(() => {});
+    this.resize(true);
   }
 
   private async enterVR() {
@@ -426,9 +430,8 @@ export class App {
 
   private onXR(on: boolean) {
     document.body.classList.toggle('in-xr', on);
-    // Coming back out of VR on a headset returns to the big "Enter the lab" button.
-    if (!on && /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent)) $('launch').hidden = false;
-    if (on) $('launch').hidden = true;
+    // Coming back out of VR returns to the start screen.
+    $('launch').hidden = on;
     this.input.dropAll();
     // A headset draws everything twice at 72+ frames a second. Real-time shadows are the most
     // expensive thing here (and they shimmer in VR), so the headset uses the soft contact shadows only.
@@ -533,7 +536,6 @@ export class App {
     const btn = $('rec');
     btn.classList.toggle('recording', on);
     btn.textContent = on ? `■ ${t('ui.stopRec')} 00:00` : `● ${t('ui.record')}`;
-    $('launchRec').textContent = `● ${t('ui.recEnter')}`;
     if (this.topic) this.refreshPanel();
   }
 }

@@ -11,10 +11,9 @@ Virtual Lab VR
 
 ## Elevator pitch (max 200 characters)
 
-> Our school's lab chemicals run out in weeks and aren't replaced for years. Virtual Lab VR is a
-> chemistry lab where nothing runs out: two headsets let a whole school do every experiment.
+> Only ~10% of schools in Uzbekistan have a lab, and their chemicals run out in months. Virtual Lab VR runs in VR or any browser, and nothing runs out: every student, every experiment.
 
-(185 characters)
+(182 characters)
 
 ---
 
@@ -22,6 +21,9 @@ Virtual Lab VR
 
 ```markdown
 ## Inspiration
+
+Only about 10% of schools in Uzbekistan have a lab [add your source]. Where a lab exists, the
+chemicals are used up within months, and then the school waits years for the next delivery.
 
 At [school name] in [city], our chemistry lab almost never has anything in it. When supplies do
 arrive, [describe what arrived and when], they're used up within [weeks]. Then we wait. Our teacher
@@ -103,8 +105,10 @@ hackathon; it shares no code with our earlier site.
 
 ## Additional info: "What is the specific problem, and how do you know it's real?"
 
-> At [school], chemistry supplies arrive rarely and run out within weeks; after that, students go
-> years without doing experiments themselves. We know because we're the students it happens to.
+> Only about 10% of schools in Uzbekistan have a lab [source]. Where labs exist, the chemicals
+> run out within months and schools wait years for new supplies. At [school], chemistry
+> supplies arrive rarely and run out within weeks; after that, students go years without doing
+> experiments themselves. We know because we're the students it happens to.
 > [Teacher name/role] confirmed the last delivery was in [year] and [what ran out first]. We
 > surveyed [N] students at [school(s)]: [X]% had done no hands-on experiments this year.
 > [Optional: photo of empty shelves / empty bottles in the image gallery.]

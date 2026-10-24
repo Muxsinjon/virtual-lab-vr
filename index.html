@@ -65,17 +65,19 @@
       #taskList li.next::before { border-color: var(--warn); }
       #taskInfo { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.06); font-size: 13.5px; line-height: 1.45; color: #d7e3ea; }
       body.in-xr header, body.in-xr footer, body.in-xr #hold, body.in-xr #tasks { display: none; }
-      #launch { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 40%, rgba(31, 61, 74, 0.82), rgba(10, 18, 26, 0.95)); cursor: pointer; }
+      #launch { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 40%, rgba(31, 61, 74, 0.82), rgba(10, 18, 26, 0.95)); }
       #launch[hidden] { display: none; }
       .launch-card { text-align: center; color: var(--ink); max-width: 760px; }
       .launch-logo { width: 110px; height: 110px; margin: 0 auto 18px; border-radius: 28px; font-size: 64px; }
       .launch-card h1 { margin: 0; font-size: 56px; }
       .launch-card > p { margin: 10px 0 0; font-size: 24px; color: var(--muted); }
-      #launchBtn { margin-top: 36px; font-size: 40px; padding: 26px 64px; border-radius: 22px; box-shadow: 0 10px 40px rgba(42, 157, 138, 0.45); }
+      .launch-buttons { margin-top: 36px; display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+      .launch-buttons button { font-size: 30px; padding: 22px 40px; border-radius: 20px; min-width: 300px; }
+      .launch-buttons button.primary { box-shadow: 0 10px 40px rgba(42, 157, 138, 0.45); }
+      .launch-buttons button:disabled { opacity: 0.45; cursor: default; font-size: 22px; }
+      @media (max-width: 720px) { .launch-card h1 { font-size: 40px; } .launch-buttons button { font-size: 22px; min-width: 0; width: 100%; } }
       .launch-card .launch-hint { margin-top: 26px; font-size: 22px; line-height: 1.5; }
       #launchLang { margin-top: 22px; font-size: 20px; padding: 12px 22px; }
-      #launchRec { margin-top: 18px; font-size: 24px; padding: 14px 30px; background: #8e2a22; }
-      #launchRec:hover { background: #b0352b; }
       #rec.recording { background: #c62828; font-weight: 700; }
       #rec.recording:hover { background: #e0453a; }
       @media (max-width: 720px) {
@@ -97,13 +99,15 @@
   <body>
     <div id="app"></div>
     <!-- On a headset, the page is just a doorway: one big button straight into the lab. -->
-    <div id="launch" hidden>
+    <div id="launch">
       <div class="launch-card">
         <div class="logo launch-logo" aria-hidden="true">⚗️</div>
         <h1 data-t="app.title">Virtual Lab VR</h1>
         <p data-t="app.tagline"></p>
-        <button id="launchBtn" class="primary" data-t="ui.enterLab"></button>
-        <div><button id="launchRec"></button></div>
+        <div class="launch-buttons">
+          <button id="launchBtn" class="primary" data-t="ui.enterVRLab"></button>
+          <button id="launchScreen" data-t="ui.enterScreen"></button>
+        </div>
         <p class="launch-hint" data-t="ui.launchHint"></p>
         <button id="launchLang" data-t="ui.lang"></button>
       </div>
